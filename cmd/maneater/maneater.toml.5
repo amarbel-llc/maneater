@@ -14,10 +14,14 @@ and manpath discovery.
 Configuration files are loaded and merged in order:
 .Bl -enum
 .It
+.Pa $XDG_CONFIG_HOME/maneater/maneater.toml
+(global; defaults to
 .Pa ~/.config/maneater/maneater.toml
-(global).
+when
+.Ev XDG_CONFIG_HOME
+is unset).
 Falls back to
-.Pa ~/.config/maneater/models.toml
+.Pa $XDG_CONFIG_HOME/maneater/models.toml
 if the primary file does not exist.
 .It
 Each parent directory between
@@ -67,12 +71,16 @@ String prepended to documents before embedding.
 Optional.
 .El
 .Pp
-Example:
+Example with multiple models:
 .Bd -literal -offset indent
-default = "nomic"
+default = "snowflake"
+
+[models.snowflake]
+path = "/opt/models/snowflake-arctic-embed-l-v2.0-q8_0.gguf"
+query-prefix = "query: "
 
 [models.nomic]
-path = "${MANEATER_MODEL_PATH}"
+path = "/opt/models/nomic-embed-text-v1.5.Q8_0.gguf"
 query-prefix = "search_query: "
 document-prefix = "search_document: "
 .Ed
@@ -136,11 +144,26 @@ To disable heuristic probing in a project:
 no-auto = true
 .Ed
 .Sh EXAMPLES
-Minimal configuration with a single model:
+Minimal configuration with a single model (no
+.Va default
+needed):
 .Bd -literal -offset indent
-[models.nomic]
-path = "/opt/models/nomic-embed-text-v1.5.Q8_0.gguf"
+[models.snowflake]
+path = "/opt/models/snowflake-arctic-embed-l-v2.0-q8_0.gguf"
+query-prefix = "query: "
 .Ed
+.Sh ENVIRONMENT
+.Bl -tag -width "MANEATER_CONFIG"
+.It Ev MANEATER_CONFIG
+When set, this single file is used instead of the hierarchical lookup
+described above.
+The Nix wrapper sets this to a bundled configuration with pre-resolved
+model paths.
+.It Ev XDG_CONFIG_HOME
+Base directory for the global configuration file.
+Defaults to
+.Pa ~/.config .
+.El
 .Sh SEE ALSO
 .Xr maneater 1 ,
 .Xr toml 5

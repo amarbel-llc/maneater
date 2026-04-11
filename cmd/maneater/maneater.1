@@ -15,8 +15,9 @@
 .Nm
 builds and queries a semantic search index over Unix man pages using vector
 embeddings.
-It extracts synopses and tldr descriptions, embeds them with
-nomic-embed-text-v1.5, and supports ranked search by natural language query.
+It extracts synopses and tldr descriptions, embeds them with a configurable
+model (snowflake-arctic-embed-l-v2.0 by default in the Nix wrapper), and
+supports ranked search by natural language query.
 .Pp
 The following commands are available:
 .Bl -tag -width "search"
@@ -48,8 +49,8 @@ nix build github:amarbel-llc/maneater
 The Nix wrapper bundles all dependencies
 .Pq mandoc, pandoc, tldr
 and sets
-.Ev MANEATER_MODEL_PATH
-to the embedding model automatically.
+.Ev MANEATER_CONFIG
+to a bundled configuration with pre-resolved model paths.
 .Ss Pre-building the search index
 The search index must be built before searching:
 .Bd -literal -offset indent
@@ -71,12 +72,30 @@ Manually install the following dependencies:
 llama-cpp (linked at build time via pkg-config)
 .El
 .Pp
-Download the nomic-embed-text-v1.5 Q8_0 GGUF model and set:
+Download a GGUF embedding model and create a configuration file.
+See
+.Xr maneater.toml 5
+for the format.
+A minimal example:
 .Bd -literal -offset indent
-export MANEATER_MODEL_PATH=/path/to/nomic-embed-text-v1.5.Q8_0.gguf
+mkdir -p ~/.config/maneater
+cat > ~/.config/maneater/maneater.toml <<'EOF'
+[models.nomic]
+path = "/path/to/nomic-embed-text-v1.5.Q8_0.gguf"
+query-prefix = "search_query: "
+document-prefix = "search_document: "
+EOF
 .Ed
 .Sh ENVIRONMENT
-.Bl -tag -width "MANEATER_MODEL_PATH"
+.Bl -tag -width "MANEATER_CONFIG"
+.It Ev MANEATER_CONFIG
+Path to the configuration file.
+When set, this single file is used instead of the hierarchical
+.Xr maneater.toml 5
+lookup.
+Set automatically by the Nix wrapper to a bundled
+.Pa models.toml
+containing model paths resolved at build time.
 .It Ev MANPATH
 Colon-separated list of directories to search for man pages.
 .Nm
@@ -100,14 +119,17 @@ This behavior can be disabled or extended via the
 .Va manpath
 section in
 .Xr maneater.toml 5 .
-.It Ev MANEATER_MODEL_PATH
-Path to the nomic-embed-text-v1.5 GGUF model file.
-Required for semantic search.
-Set automatically by the Nix wrapper.
 .It Ev XDG_CACHE_HOME
 Base directory for the search index cache.
 Defaults to
 .Pa ~/.cache .
+.It Ev XDG_CONFIG_HOME
+Base directory for the global configuration file.
+Defaults to
+.Pa ~/.config .
+See
+.Xr maneater.toml 5
+for the full hierarchy.
 .El
 .Sh FILES
 .Bl -tag -width "$XDG_CACHE_HOME/maneater/man-index/"
