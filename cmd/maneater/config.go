@@ -21,9 +21,11 @@ type ManeaterConfig struct {
 
 type CorpusConfig struct {
 	Name     string   `toml:"name"`
-	Type     string   `toml:"type"` // "manpages" or "files"
+	Type     string   `toml:"type"` // "manpages", "files", or "command"
 	Paths    []string `toml:"paths"`
 	MaxChars int      `toml:"max-chars"`
+	ListCmd  []string `toml:"list-cmd"`
+	ReadCmd  []string `toml:"read-cmd"`
 }
 
 // ManpathConfig controls how maneater discovers man pages beyond the system
@@ -105,6 +107,14 @@ func decodeCorporaFromCST(doc *ManeaterConfigDocument) []CorpusConfig {
 			case "max-chars":
 				if v, ok := cst.ExtractInt(kv); ok {
 					cc.MaxChars = v
+				}
+			case "list-cmd":
+				if v, ok := cst.ExtractStringSlice(kv); ok {
+					cc.ListCmd = v
+				}
+			case "read-cmd":
+				if v, ok := cst.ExtractStringSlice(kv); ok {
+					cc.ReadCmd = v
 				}
 			}
 		}
@@ -227,6 +237,22 @@ func corpusFromConfig(cc CorpusConfig) (Corpus, error) {
 		return &FilesCorpus{
 			CorpusName: cc.Name,
 			Patterns:   cc.Paths,
+			MaxChars:   cc.MaxChars,
+		}, nil
+	case "command":
+		if cc.Name == "" {
+			return nil, fmt.Errorf("corpus of type %q requires a name", cc.Type)
+		}
+		if len(cc.ListCmd) == 0 {
+			return nil, fmt.Errorf("corpus %q: command type requires list-cmd", cc.Name)
+		}
+		if len(cc.ReadCmd) == 0 {
+			return nil, fmt.Errorf("corpus %q: command type requires read-cmd", cc.Name)
+		}
+		return &CommandCorpus{
+			CorpusName: cc.Name,
+			ListCmd:    cc.ListCmd,
+			ReadCmd:    cc.ReadCmd,
 			MaxChars:   cc.MaxChars,
 		}, nil
 	default:
