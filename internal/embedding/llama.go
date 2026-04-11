@@ -66,8 +66,8 @@ func (e *Embedder) Embed(text string) ([]float32, error) {
 		textLen,
 		&tokens[0],
 		C.int(maxTokens),
-		true,  // add_special (BOS)
-		true,  // parse_special
+		true, // add_special (BOS)
+		true, // parse_special
 	)
 
 	if nTokens < 0 {
