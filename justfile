@@ -2,11 +2,11 @@
 default: build test
 
 # Build maneater binary
-build:
+build: generate
   go build -o build/maneater ./cmd/maneater
 
 # Run all tests
-test:
+test: fmt
   go test ./...
 
 # Run go generate (regenerate config_tommy.go)
