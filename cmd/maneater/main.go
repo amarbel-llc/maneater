@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"compress/gzip"
 	"context"
+	"embed"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -39,12 +40,20 @@ type searcher struct {
 	corpora   []Corpus
 }
 
+//go:embed maneater.1 maneater.toml.5
+var manpages embed.FS
+
 func newApp() *command.App {
 	app := command.NewApp("maneater", "Man page search index and semantic search CLI")
 	app.Version = "0.6.0"
 	app.Description.Long = "Maneater builds and queries a semantic search index over Unix man pages " +
 		"using vector embeddings. It extracts synopses and tldr descriptions, embeds " +
 		"them with nomic-embed-text-v1.5, and supports ranked search by natural language query."
+
+	app.ExtraManpages = []command.ManpageFile{
+		{Source: manpages, Path: "maneater.1", Section: 1, Name: "maneater.1"},
+		{Source: manpages, Path: "maneater.toml.5", Section: 5, Name: "maneater.toml.5"},
+	}
 
 	app.Examples = []command.Example{
 		{
@@ -105,6 +114,15 @@ func newApp() *command.App {
 
 func main() {
 	app := newApp()
+
+	if len(os.Args) >= 2 && os.Args[1] == "generate-plugin" {
+		if err := app.HandleGeneratePlugin(os.Args[2:], os.Stdout); err != nil {
+			fmt.Fprintf(os.Stderr, "maneater: %v\n", err)
+			os.Exit(1)
+		}
+		return
+	}
+
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt)
 	defer cancel()
 	if err := app.RunCLI(ctx, os.Args[1:], command.StubPrompter{}); err != nil {
