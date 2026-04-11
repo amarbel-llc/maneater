@@ -1,0 +1,7 @@
+# Tracer bullet: index all Go source files in this repo.
+
+[[corpora]]
+name = "maneater-src"
+type = "files"
+paths = ["cmd/maneater/*.go", "internal/embedding/*.go"]
+max-chars = 1000

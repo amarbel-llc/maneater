@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"iter"
 	"os"
 	"os/exec"
 	"os/signal"
@@ -35,6 +36,7 @@ type searcher struct {
 	modelName string
 	modelCfg  ModelConfig
 	manpath   []string
+	corpora   []Corpus
 }
 
 func newApp() *command.App {
@@ -148,7 +150,12 @@ func runSearch(args []string) error {
 		return err
 	}
 
-	s := &searcher{manpath: manpath}
+	corpora, err := resolveCorpora(cfg, manpath)
+	if err != nil {
+		return err
+	}
+
+	s := &searcher{manpath: manpath, corpora: corpora}
 	result, err := s.handleSearch(query, topK)
 	if err != nil {
 		return err
@@ -220,33 +227,41 @@ func (s *searcher) ensureSearchReady() error {
 }
 
 func (s *searcher) loadOrBuildIndex() (*embedding.Index, error) {
-	cacheDir := indexCacheDirForModel(s.modelName)
+	var combined *embedding.Index
 
-	idx, err := embedding.LoadIndex(cacheDir)
-	if err == nil {
-		fmt.Fprintf(os.Stderr, "maneater: loaded search index (%d entries) from %s\n", len(idx.Entries), cacheDir)
-		return idx, nil
+	for _, corpus := range s.corpora {
+		cacheDir := indexCacheDir(corpus.Name(), s.modelName)
+
+		idx, err := embedding.LoadIndex(cacheDir)
+		if err == nil {
+			fmt.Fprintf(os.Stderr, "maneater: loaded %s index (%d entries) from %s\n",
+				corpus.Name(), len(idx.Entries), cacheDir)
+		} else {
+			fmt.Fprintf(os.Stderr, "maneater: building %s index...\n", corpus.Name())
+
+			idx, err = buildCorpusIndex(s.embedder, s.modelCfg, corpus, os.Stderr)
+			if err != nil {
+				return nil, fmt.Errorf("building %s index: %w", corpus.Name(), err)
+			}
+
+			if saveErr := idx.Save(cacheDir); saveErr != nil {
+				fmt.Fprintf(os.Stderr, "maneater: warning: could not cache %s index: %v\n",
+					corpus.Name(), saveErr)
+			}
+		}
+
+		if combined == nil {
+			combined = idx
+		} else {
+			combined.Entries = append(combined.Entries, idx.Entries...)
+		}
 	}
 
-	fmt.Fprintf(os.Stderr, "maneater: building search index...\n")
-
-	ensureTldrCache()
-
-	pages, err := listManPages(s.manpath)
-	if err != nil {
-		return nil, err
+	if combined == nil {
+		combined = embedding.NewIndex(0)
 	}
 
-	idx, stats := buildIndex(s.embedder, s.modelCfg, pages, s.manpath, os.Stderr)
-
-	fmt.Fprintf(os.Stderr, "maneater: indexed %d entries (%d pages, %d with tldr)\n",
-		len(idx.Entries), len(pages), stats.tldrCount)
-
-	if err := idx.Save(cacheDir); err != nil {
-		fmt.Fprintf(os.Stderr, "maneater: warning: could not cache index: %v\n", err)
-	}
-
-	return idx, nil
+	return combined, nil
 }
 
 type pageText struct {
@@ -256,110 +271,52 @@ type pageText struct {
 	tldr     string
 }
 
-type indexStats struct {
-	tldrCount int
-}
-
-func buildIndex(emb *embedding.Embedder, cfg ModelConfig, pages []string, manpath []string, logw *os.File) (*embedding.Index, indexStats) {
-	// Extract text concurrently, embed serially.
-	// Workers run mandoc|pandoc pipelines in parallel; results are
-	// sent in order to the main goroutine for embedding.
-	texts := make(chan pageText, 32)
-
-	go func() {
-		defer close(texts)
-
-		type indexed struct {
-			pt  pageText
-			seq int
-		}
-
-		workers := 8
-		sem := make(chan struct{}, workers)
-		results := make(chan indexed, 32)
-
-		go func() {
-			defer close(results)
-			var wg sync.WaitGroup
-			for i, page := range pages {
-				wg.Add(1)
-				sem <- struct{}{}
-				go func(seq int, page string) {
-					defer wg.Done()
-					defer func() { <-sem }()
-					results <- indexed{
-						pt: pageText{
-							index:    seq,
-							page:     page,
-							synopsis: extractSynopsis(manpath, page),
-							tldr:     extractTldr(page),
-						},
-						seq: seq,
-					}
-				}(i, page)
-			}
-			wg.Wait()
-		}()
-
-		// Reorder results to preserve deterministic index order.
-		pending := make(map[int]pageText)
-		next := 0
-		for r := range results {
-			pending[r.seq] = r.pt
-			for {
-				pt, ok := pending[next]
-				if !ok {
-					break
-				}
-				delete(pending, next)
-				texts <- pt
-				next++
-			}
-		}
-	}()
-
-	idx := embedding.NewIndex(emb.EmbeddingDim())
-	var stats indexStats
-
-	for pt := range texts {
-		if pt.synopsis != "" {
-			docText := cfg.DocumentPrefix + pt.synopsis
-			vec, err := emb.Embed(docText)
-			if err != nil {
-				fmt.Fprintf(logw, "maneater: skipping %s synopsis: %v\n", pt.page, err)
-			} else {
-				idx.Add(pt.page, vec)
-			}
-		}
-
-		if pt.tldr != "" {
-			docText := cfg.DocumentPrefix + pt.tldr
-			vec, err := emb.Embed(docText)
-			if err != nil {
-				fmt.Fprintf(logw, "maneater: skipping %s tldr: %v\n", pt.page, err)
-			} else {
-				idx.Add(pt.page, vec)
-				stats.tldrCount++
-			}
-		}
-
-		if (pt.index+1)%100 == 0 {
-			fmt.Fprintf(logw, "maneater: indexed %d / %d pages\n", pt.index+1, len(pages))
-		}
-	}
-
-	return idx, stats
-}
-
-func indexCacheDirForModel(modelName string) string {
+func indexCacheDir(corpusName, modelName string) string {
 	var base string
 	if xdg := os.Getenv("XDG_CACHE_HOME"); xdg != "" {
-		base = filepath.Join(xdg, "maneater", "man-index")
+		base = filepath.Join(xdg, "maneater", "index")
 	} else {
 		home, _ := os.UserHomeDir()
-		base = filepath.Join(home, ".cache", "maneater", "man-index")
+		base = filepath.Join(home, ".cache", "maneater", "index")
 	}
-	return filepath.Join(base, modelName)
+	return filepath.Join(base, corpusName, modelName)
+}
+
+// buildCorpusIndex builds an embedding index from a Corpus.
+func buildCorpusIndex(emb *embedding.Embedder, cfg ModelConfig, corpus Corpus, logw io.Writer) (*embedding.Index, error) {
+	if err := corpus.Prepare(); err != nil {
+		return nil, fmt.Errorf("preparing corpus %s: %w", corpus.Name(), err)
+	}
+
+	idx := embedding.NewIndex(emb.EmbeddingDim())
+	count := 0
+
+	for doc, err := range corpus.Documents() {
+		if err != nil {
+			fmt.Fprintf(logw, "maneater: skipping document: %v\n", err)
+			continue
+		}
+
+		for _, text := range doc.Texts {
+			docText := cfg.DocumentPrefix + text
+			vec, err := emb.Embed(docText)
+			if err != nil {
+				fmt.Fprintf(logw, "maneater: skipping %s: %v\n", doc.Key, err)
+				continue
+			}
+			idx.Add(doc.Key, vec)
+		}
+
+		count++
+		if count%100 == 0 {
+			fmt.Fprintf(logw, "maneater: [%s] indexed %d documents\n", corpus.Name(), count)
+		}
+	}
+
+	fmt.Fprintf(logw, "maneater: [%s] indexed %d documents (%d entries)\n",
+		corpus.Name(), count, len(idx.Entries))
+
+	return idx, nil
 }
 
 // indexedSections are the man sections scanned for the search index.
@@ -734,6 +691,125 @@ func formatTOC(page, manSection string, sections []pageSection) string {
 	return b.String()
 }
 
+// manpagesCorpus wraps the existing man-page discovery and extraction
+// functions as a Corpus. This is an adapter — the extraction logic stays
+// in main.go for now and will move to corpus_man.go later.
+type manpagesCorpus struct {
+	manpath []string
+}
+
+func (c *manpagesCorpus) Name() string { return "manpages" }
+
+func (c *manpagesCorpus) Prepare() error {
+	ensureTldrCache()
+	return nil
+}
+
+func (c *manpagesCorpus) Documents() iter.Seq2[Document, error] {
+	return func(yield func(Document, error) bool) {
+		pages, err := listManPages(c.manpath)
+		if err != nil {
+			yield(Document{}, err)
+			return
+		}
+
+		// Extract text concurrently using the existing worker pipeline.
+		texts := make(chan pageText, 32)
+
+		go func() {
+			defer close(texts)
+
+			type indexed struct {
+				pt  pageText
+				seq int
+			}
+
+			workers := 8
+			sem := make(chan struct{}, workers)
+			results := make(chan indexed, 32)
+
+			go func() {
+				defer close(results)
+				var wg sync.WaitGroup
+				for i, page := range pages {
+					wg.Add(1)
+					sem <- struct{}{}
+					go func(seq int, page string) {
+						defer wg.Done()
+						defer func() { <-sem }()
+						results <- indexed{
+							pt: pageText{
+								index:    seq,
+								page:     page,
+								synopsis: extractSynopsis(c.manpath, page),
+								tldr:     extractTldr(page),
+							},
+							seq: seq,
+						}
+					}(i, page)
+				}
+				wg.Wait()
+			}()
+
+			pending := make(map[int]pageText)
+			next := 0
+			for r := range results {
+				pending[r.seq] = r.pt
+				for {
+					pt, ok := pending[next]
+					if !ok {
+						break
+					}
+					delete(pending, next)
+					texts <- pt
+					next++
+				}
+			}
+		}()
+
+		for pt := range texts {
+			var chunks []string
+			if pt.synopsis != "" {
+				chunks = append(chunks, pt.synopsis)
+			}
+			if pt.tldr != "" {
+				chunks = append(chunks, pt.tldr)
+			}
+			if len(chunks) == 0 {
+				continue
+			}
+			if !yield(Document{Key: pt.page, Texts: chunks}, nil) {
+				return
+			}
+		}
+	}
+}
+
+func resolveCorpora(cfg ManeaterConfig, manpath []string) ([]Corpus, error) {
+	// If no corpora configured, use implicit manpages corpus.
+	if len(cfg.Corpora) == 0 {
+		return []Corpus{&manpagesCorpus{manpath: manpath}}, nil
+	}
+
+	// When corpora are explicitly configured, only those are used.
+	// Add type = "manpages" to include man pages.
+	var corpora []Corpus
+
+	for _, cc := range cfg.Corpora {
+		if cc.Type == "manpages" {
+			corpora = append(corpora, &manpagesCorpus{manpath: manpath})
+			continue
+		}
+		c, err := corpusFromConfig(cc)
+		if err != nil {
+			return nil, fmt.Errorf("corpus %q: %w", cc.Name, err)
+		}
+		corpora = append(corpora, c)
+	}
+
+	return corpora, nil
+}
+
 func runIndex() error {
 	modelName, modelCfg, err := loadActiveModel()
 	if err != nil {
@@ -755,6 +831,11 @@ func runIndex() error {
 		return err
 	}
 
+	corpora, err := resolveCorpora(cfg, manpath)
+	if err != nil {
+		return err
+	}
+
 	fmt.Printf("Using model %q from %s\n", modelName, modelCfg.Path)
 
 	emb, err := embedding.NewEmbedder(modelCfg.Path)
@@ -763,24 +844,22 @@ func runIndex() error {
 	}
 	defer emb.Close()
 
-	fmt.Println("Updating tldr cache...")
-	ensureTldrCache()
+	for _, corpus := range corpora {
+		fmt.Printf("Indexing corpus %q...\n", corpus.Name())
 
-	fmt.Println("Listing man pages...")
-	pages, err := listManPages(manpath)
-	if err != nil {
-		return err
+		idx, err := buildCorpusIndex(emb, modelCfg, corpus, os.Stderr)
+		if err != nil {
+			return fmt.Errorf("indexing corpus %s: %w", corpus.Name(), err)
+		}
+
+		cacheDir := indexCacheDir(corpus.Name(), modelName)
+		if err := idx.Save(cacheDir); err != nil {
+			return fmt.Errorf("saving index for %s: %w", corpus.Name(), err)
+		}
+
+		fmt.Printf("Done: %s — %d entries saved to %s\n",
+			corpus.Name(), len(idx.Entries), cacheDir)
 	}
-	fmt.Printf("Found %d man pages\n", len(pages))
 
-	idx, stats := buildIndex(emb, modelCfg, pages, manpath, os.Stderr)
-
-	cacheDir := indexCacheDirForModel(modelName)
-	if err := idx.Save(cacheDir); err != nil {
-		return fmt.Errorf("saving index: %w", err)
-	}
-
-	fmt.Printf("Done: %d entries (%d pages, %d with tldr) saved to %s\n",
-		len(idx.Entries), len(pages), stats.tldrCount, cacheDir)
 	return nil
 }

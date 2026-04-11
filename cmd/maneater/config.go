@@ -7,6 +7,8 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+
+	"github.com/amarbel-llc/tommy/pkg/cst"
 )
 
 //go:generate tommy generate
@@ -14,6 +16,14 @@ type ManeaterConfig struct {
 	Default string                 `toml:"default"`
 	Models  map[string]ModelConfig `toml:"models"`
 	Manpath *ManpathConfig         `toml:"manpath"`
+	Corpora []CorpusConfig         `toml:"-"` // decoded manually from [[corpora]]
+}
+
+type CorpusConfig struct {
+	Name     string   `toml:"name"`
+	Type     string   `toml:"type"` // "manpages" or "files"
+	Paths    []string `toml:"paths"`
+	MaxChars int      `toml:"max-chars"`
 }
 
 // ManpathConfig controls how maneater discovers man pages beyond the system
@@ -54,7 +64,54 @@ func loadManeaterFile(path string) (ManeaterConfig, bool, error) {
 		return ManeaterConfig{}, false, fmt.Errorf("parsing %s: %w", path, err)
 	}
 
-	return *doc.Data(), true, nil
+	cfg := *doc.Data()
+	cfg.Corpora = decodeCorporaFromCST(doc)
+
+	return cfg, true, nil
+}
+
+// decodeCorporaFromCST extracts [[corpora]] array-of-tables entries from the
+// tommy CST. Tommy doesn't generate code for array-of-tables, so we walk the
+// CST manually using the same primitives the generated code uses.
+func decodeCorporaFromCST(doc *ManeaterConfigDocument) []CorpusConfig {
+	var corpora []CorpusConfig
+
+	for _, ch := range doc.cstDoc.Root().Children {
+		if ch.Kind != cst.NodeArrayTable {
+			continue
+		}
+		if cst.TableHeaderKey(ch) != "corpora" {
+			continue
+		}
+
+		var cc CorpusConfig
+		for _, kv := range ch.Children {
+			if kv.Kind != cst.NodeKeyValue {
+				continue
+			}
+			switch cst.KeyValueName(kv) {
+			case "name":
+				if v, ok := cst.ExtractString(kv); ok {
+					cc.Name = v
+				}
+			case "type":
+				if v, ok := cst.ExtractString(kv); ok {
+					cc.Type = v
+				}
+			case "paths":
+				if v, ok := cst.ExtractStringSlice(kv); ok {
+					cc.Paths = v
+				}
+			case "max-chars":
+				if v, ok := cst.ExtractInt(kv); ok {
+					cc.MaxChars = v
+				}
+			}
+		}
+		corpora = append(corpora, cc)
+	}
+
+	return corpora
 }
 
 // MergeConfig combines base and overlay configs. Models are merged by name
@@ -76,6 +133,9 @@ func MergeConfig(base, overlay ManeaterConfig) ManeaterConfig {
 			merged.Models[k] = v
 		}
 	}
+
+	// Accumulate corpora across hierarchy levels.
+	merged.Corpora = append(merged.Corpora, overlay.Corpora...)
 
 	// Accumulate manpath include paths; overlay's no-auto replaces base's.
 	if overlay.Manpath != nil {
@@ -156,6 +216,22 @@ func LoadManeaterHierarchy(home, dir string) (ManeaterConfig, error) {
 	expandEnvInModels(&merged)
 
 	return merged, nil
+}
+
+func corpusFromConfig(cc CorpusConfig) (Corpus, error) {
+	switch cc.Type {
+	case "files":
+		if cc.Name == "" {
+			return nil, fmt.Errorf("corpus of type %q requires a name", cc.Type)
+		}
+		return &FilesCorpus{
+			CorpusName: cc.Name,
+			Patterns:   cc.Paths,
+			MaxChars:   cc.MaxChars,
+		}, nil
+	default:
+		return nil, fmt.Errorf("unknown corpus type %q", cc.Type)
+	}
 }
 
 // expandEnvInModels expands $VAR and ${VAR} references in model path fields.

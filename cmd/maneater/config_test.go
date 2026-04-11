@@ -216,6 +216,149 @@ func TestMergeConfigManpathBaseOnlyPreserved(t *testing.T) {
 	}
 }
 
+func TestParseCorporaConfig(t *testing.T) {
+	input := []byte(`
+[[corpora]]
+name = "docs"
+type = "files"
+paths = ["docs/*.md", "README.md"]
+max-chars = 1000
+
+[[corpora]]
+name = "src"
+type = "files"
+paths = ["*.go"]
+`)
+	doc, err := DecodeManeaterConfig(input)
+	if err != nil {
+		t.Fatalf("parse error: %v", err)
+	}
+	corpora := decodeCorporaFromCST(doc)
+	if len(corpora) != 2 {
+		t.Fatalf("expected 2 corpora, got %d", len(corpora))
+	}
+
+	if corpora[0].Name != "docs" {
+		t.Errorf("first corpus name = %q, want docs", corpora[0].Name)
+	}
+	if corpora[0].Type != "files" {
+		t.Errorf("first corpus type = %q, want files", corpora[0].Type)
+	}
+	if len(corpora[0].Paths) != 2 {
+		t.Fatalf("first corpus paths: got %d, want 2", len(corpora[0].Paths))
+	}
+	if corpora[0].MaxChars != 1000 {
+		t.Errorf("first corpus max-chars = %d, want 1000", corpora[0].MaxChars)
+	}
+
+	if corpora[1].Name != "src" {
+		t.Errorf("second corpus name = %q, want src", corpora[1].Name)
+	}
+	if corpora[1].MaxChars != 0 {
+		t.Errorf("second corpus max-chars = %d, want 0 (default)", corpora[1].MaxChars)
+	}
+}
+
+func TestParseCorporaWithModels(t *testing.T) {
+	input := []byte(`
+default = "nomic"
+
+[models.nomic]
+path = "/tmp/model.gguf"
+
+[[corpora]]
+name = "notes"
+type = "files"
+paths = ["*.md"]
+`)
+	doc, err := DecodeManeaterConfig(input)
+	if err != nil {
+		t.Fatalf("parse error: %v", err)
+	}
+	cfg := doc.Data()
+	if cfg.Default != "nomic" {
+		t.Errorf("Default = %q, want nomic", cfg.Default)
+	}
+	if cfg.Models["nomic"].Path != "/tmp/model.gguf" {
+		t.Errorf("model path wrong")
+	}
+
+	corpora := decodeCorporaFromCST(doc)
+	if len(corpora) != 1 {
+		t.Fatalf("expected 1 corpus, got %d", len(corpora))
+	}
+	if corpora[0].Name != "notes" {
+		t.Errorf("corpus name = %q, want notes", corpora[0].Name)
+	}
+}
+
+func TestMergeCorporaAccumulates(t *testing.T) {
+	base := ManeaterConfig{
+		Corpora: []CorpusConfig{
+			{Name: "docs", Type: "files", Paths: []string{"docs/*.md"}},
+		},
+	}
+	overlay := ManeaterConfig{
+		Corpora: []CorpusConfig{
+			{Name: "src", Type: "files", Paths: []string{"*.go"}},
+		},
+	}
+
+	merged := MergeConfig(base, overlay)
+	if len(merged.Corpora) != 2 {
+		t.Fatalf("expected 2 corpora, got %d", len(merged.Corpora))
+	}
+	if merged.Corpora[0].Name != "docs" {
+		t.Errorf("first corpus = %q, want docs", merged.Corpora[0].Name)
+	}
+	if merged.Corpora[1].Name != "src" {
+		t.Errorf("second corpus = %q, want src", merged.Corpora[1].Name)
+	}
+}
+
+func TestLoadHierarchyWithCorpora(t *testing.T) {
+	tmpHome := t.TempDir()
+
+	globalDir := filepath.Join(tmpHome, ".config", "maneater")
+	if err := os.MkdirAll(globalDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(globalDir, "maneater.toml"), []byte(`
+[models.test]
+path = "/tmp/model.gguf"
+`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	projectDir := filepath.Join(tmpHome, "project")
+	if err := os.MkdirAll(projectDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(projectDir, "maneater.toml"), []byte(`
+[[corpora]]
+name = "project-docs"
+type = "files"
+paths = ["*.md"]
+`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	cfg, err := LoadManeaterHierarchy(tmpHome, projectDir)
+	if err != nil {
+		t.Fatalf("LoadManeaterHierarchy: %v", err)
+	}
+
+	if len(cfg.Models) != 1 {
+		t.Errorf("expected 1 model from global config")
+	}
+	if len(cfg.Corpora) != 1 {
+		t.Fatalf("expected 1 corpus from project config, got %d", len(cfg.Corpora))
+	}
+	if cfg.Corpora[0].Name != "project-docs" {
+		t.Errorf("corpus name = %q, want project-docs", cfg.Corpora[0].Name)
+	}
+}
+
 func TestParseManpathConfig(t *testing.T) {
 	input := []byte(`
 [manpath]
