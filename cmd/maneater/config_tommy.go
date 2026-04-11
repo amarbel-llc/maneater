@@ -4,15 +4,16 @@ package main
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/amarbel-llc/tommy/pkg/cst"
 	"github.com/amarbel-llc/tommy/pkg/document"
 )
 
-// Ensure imports are used.
 var (
 	_ = fmt.Errorf
 	_ cst.NodeKind
+	_ = strings.Contains
 )
 
 type ManeaterConfigDocument struct {
@@ -27,231 +28,343 @@ func DecodeManeaterConfig(input []byte) (*ManeaterConfigDocument, error) {
 		return nil, err
 	}
 
-	d := &ManeaterConfigDocument{cstDoc: doc, consumed: make(map[string]bool)}
-
-	if v, err := document.GetFromContainer[string](d.cstDoc, d.cstDoc.Root(), "default"); err == nil {
-		d.data.Default = v
-		d.consumed["default"] = true
+	d := &ManeaterConfigDocument{
+		consumed: make(map[string]bool),
+		cstDoc:   doc,
 	}
-	{
-		subTables := d.cstDoc.FindSubTables("models")
-		if len(subTables) > 0 {
-			d.consumed["models"] = true
-			d.data.Models = make(map[string]ModelConfig)
-			for _, subTable := range subTables {
-				mapKey := document.SubTableKey(subTable, "models")
-				d.consumed["models"+"."+mapKey] = true
-				var entry ModelConfig
-				if v, err := document.GetFromContainer[string](d.cstDoc, subTable, "path"); err == nil {
-					entry.Path = v
-					d.consumed["models.path"] = true
-				}
-				if v, err := document.GetFromContainer[string](d.cstDoc, subTable, "query-prefix"); err == nil {
-					entry.QueryPrefix = v
-					d.consumed["models.query-prefix"] = true
-				}
-				if v, err := document.GetFromContainer[string](d.cstDoc, subTable, "document-prefix"); err == nil {
-					entry.DocumentPrefix = v
-					d.consumed["models.document-prefix"] = true
-				}
-				d.data.Models[mapKey] = entry
+
+	for _, _kv := range d.cstDoc.Root().Children {
+		if _kv.Kind != cst.NodeKeyValue {
+			continue
+		}
+		switch cst.KeyValueName(_kv) {
+		case "default":
+			if v, ok := cst.ExtractString(_kv); ok {
+				d.data.Default = v
+				d.consumed["default"] = true
 			}
 		}
 	}
-	if tableNode := d.cstDoc.FindTableInContainer(d.cstDoc.Root(), "manpath"); tableNode != nil {
-		d.consumed["manpath"] = true
-		manpathVal := &ManpathConfig{}
-		if v, err := document.GetFromContainer[[]string](d.cstDoc, tableNode, "include"); err == nil {
-			manpathVal.Include = v
-			d.consumed["manpath.include"] = true
+	{
+		var _mr map[string]ModelConfig
+		for _, _ch := range d.cstDoc.Root().Children {
+			if _ch.Kind != cst.NodeTable {
+				continue
+			}
+			_hdr := cst.TableHeaderKey(_ch)
+			if !strings.HasPrefix(_hdr, "models.") {
+				continue
+			}
+			_mk := _hdr[7:]
+			if strings.Contains(_mk, ".") {
+				continue
+			}
+			if _mr == nil {
+				d.consumed["models"] = true
+				_mr = make(map[string]ModelConfig)
+			}
+			d.consumed["models"+"."+_mk] = true
+			var entry ModelConfig
+			for _, _kv := range _ch.Children {
+				if _kv.Kind != cst.NodeKeyValue {
+					continue
+				}
+				switch cst.KeyValueName(_kv) {
+				case "path":
+					if v, ok := cst.ExtractString(_kv); ok {
+						entry.Path = v
+						d.consumed["models."+_mk+"."+"path"] = true
+					}
+				case "query-prefix":
+					if v, ok := cst.ExtractString(_kv); ok {
+						entry.QueryPrefix = v
+						d.consumed["models."+_mk+"."+"query-prefix"] = true
+					}
+				case "document-prefix":
+					if v, ok := cst.ExtractString(_kv); ok {
+						entry.DocumentPrefix = v
+						d.consumed["models."+_mk+"."+"document-prefix"] = true
+					}
+				}
+			}
+			_mr[_mk] = entry
 		}
-		if v, err := document.GetFromContainer[bool](d.cstDoc, tableNode, "no-auto"); err == nil {
-			manpathVal.NoAuto = v
-			d.consumed["manpath.no-auto"] = true
-		}
-		d.data.Manpath = manpathVal
-	} else {
-		manpathVal := &ManpathConfig{}
-		found := false
-		if v, err := document.GetFromContainer[[]string](d.cstDoc, d.cstDoc.Root(), "include"); err == nil {
-			manpathVal.Include = v
-			d.consumed["include"] = true
-		}
-		if v, err := document.GetFromContainer[bool](d.cstDoc, d.cstDoc.Root(), "no-auto"); err == nil {
-			manpathVal.NoAuto = v
-			found = true
-			d.consumed["no-auto"] = true
-		}
-		if found {
-			d.data.Manpath = manpathVal
+		if _mr != nil {
+			d.data.Models = _mr
 		}
 	}
-
+	{
+		var _ftManpath *cst.Node
+		for _, _ch := range d.cstDoc.Root().Children {
+			if _ch.Kind == cst.NodeTable && cst.TableHeaderKey(_ch) == "manpath" {
+				_ftManpath = _ch
+				break
+			}
+		}
+		if _ftManpath != nil {
+			d.consumed["manpath"] = true
+			manpathVal := &ManpathConfig{}
+			for _, _kv := range _ftManpath.Children {
+				if _kv.Kind != cst.NodeKeyValue {
+					continue
+				}
+				switch cst.KeyValueName(_kv) {
+				case "include":
+					if v, ok := cst.ExtractStringSlice(_kv); ok {
+						manpathVal.Include = v
+						d.consumed["manpath.include"] = true
+					}
+				case "no-auto":
+					if v, ok := cst.ExtractBool(_kv); ok {
+						manpathVal.NoAuto = v
+						d.consumed["manpath.no-auto"] = true
+					}
+				}
+			}
+			d.data.Manpath = manpathVal
+		} else {
+			manpathVal := &ManpathConfig{}
+			_found := false
+			for _, _kv := range d.cstDoc.Root().Children {
+				if _kv.Kind != cst.NodeKeyValue {
+					continue
+				}
+				switch cst.KeyValueName(_kv) {
+				case "include":
+					if v, ok := cst.ExtractStringSlice(_kv); ok {
+						manpathVal.Include = v
+						d.consumed["include"] = true
+					}
+				case "no-auto":
+					if v, ok := cst.ExtractBool(_kv); ok {
+						manpathVal.NoAuto = v
+						_found = true
+						d.consumed["no-auto"] = true
+					}
+				}
+			}
+			if _found {
+				d.data.Manpath = manpathVal
+			}
+		}
+	}
 	return d, nil
 }
-
-func (d *ManeaterConfigDocument) Data() *ManeaterConfig { return &d.data }
-
+func (d *ManeaterConfigDocument) Data() *ManeaterConfig {
+	return &d.data
+}
 func (d *ManeaterConfigDocument) Encode() ([]byte, error) {
-	if d.data.Default != "" || d.cstDoc.HasInContainer(d.cstDoc.Root(), "default") {
-		if err := d.cstDoc.SetInContainer(d.cstDoc.Root(), "default", d.data.Default); err != nil {
-			return nil, err
+	if d.data.Default != "" || cst.HasValue(d.cstDoc.Root(), "default") {
+		if err := cst.SetAny(d.cstDoc.Root(), "default", d.data.Default); err != nil {
+			return nil, fmt.Errorf("%w", err)
 		}
 	}
 	if len(d.data.Models) > 0 {
 		for mapKey, mapVal := range d.data.Models {
-			subTable := d.cstDoc.EnsureSubTable("models", mapKey)
-			if mapVal.Path != "" || d.cstDoc.HasInContainer(subTable, "path") {
-				if err := d.cstDoc.SetInContainer(subTable, "path", mapVal.Path); err != nil {
-					return nil, err
+			subTable := cst.EnsureChildSubTable(d.cstDoc.Root(), d.cstDoc.Root(), "models", mapKey)
+			if mapVal.Path != "" || cst.HasValue(subTable, "path") {
+				if err := cst.SetAny(subTable, "path", mapVal.Path); err != nil {
+					return nil, fmt.Errorf("%w", err)
 				}
 			}
-			if mapVal.QueryPrefix != "" || d.cstDoc.HasInContainer(subTable, "query-prefix") {
-				if err := d.cstDoc.SetInContainer(subTable, "query-prefix", mapVal.QueryPrefix); err != nil {
-					return nil, err
+			if mapVal.QueryPrefix != "" || cst.HasValue(subTable, "query-prefix") {
+				if err := cst.SetAny(subTable, "query-prefix", mapVal.QueryPrefix); err != nil {
+					return nil, fmt.Errorf("%w", err)
 				}
 			}
-			if mapVal.DocumentPrefix != "" || d.cstDoc.HasInContainer(subTable, "document-prefix") {
-				if err := d.cstDoc.SetInContainer(subTable, "document-prefix", mapVal.DocumentPrefix); err != nil {
-					return nil, err
+			if mapVal.DocumentPrefix != "" || cst.HasValue(subTable, "document-prefix") {
+				if err := cst.SetAny(subTable, "document-prefix", mapVal.DocumentPrefix); err != nil {
+					return nil, fmt.Errorf("%w", err)
 				}
 			}
 		}
 	}
 	if d.data.Manpath != nil {
-		tableNode := d.cstDoc.EnsureTableInContainer(d.cstDoc.Root(), "manpath")
-		if err := d.cstDoc.SetInContainer(tableNode, "include", d.data.Manpath.Include); err != nil {
-			return nil, err
+		tableNode := cst.EnsureChildTable(d.cstDoc.Root(), d.cstDoc.Root(), "manpath")
+		{
+			if err := cst.SetAny(tableNode, "include", d.data.Manpath.Include); err != nil {
+				return nil, fmt.Errorf("%w", err)
+			}
 		}
-		if d.data.Manpath.NoAuto != false || d.cstDoc.HasInContainer(tableNode, "no-auto") {
-			if err := d.cstDoc.SetInContainer(tableNode, "no-auto", d.data.Manpath.NoAuto); err != nil {
-				return nil, err
+		if d.data.Manpath.NoAuto != false || cst.HasValue(tableNode, "no-auto") {
+			if err := cst.SetAny(tableNode, "no-auto", d.data.Manpath.NoAuto); err != nil {
+				return nil, fmt.Errorf("%w", err)
 			}
 		}
 	}
-
 	return d.cstDoc.Bytes(), nil
 }
-
 func (d *ManeaterConfigDocument) Undecoded() []string {
 	return document.UndecodedKeys(d.cstDoc.Root(), d.consumed)
 }
-
 func (d *ManeaterConfigDocument) Comment(key string) string {
 	return d.cstDoc.GetComment(key)
 }
-
 func (d *ManeaterConfigDocument) SetComment(key, comment string) {
 	d.cstDoc.SetComment(key, comment)
 }
-
 func (d *ManeaterConfigDocument) InlineComment(key string) string {
 	return d.cstDoc.GetInlineComment(key)
 }
-
 func (d *ManeaterConfigDocument) SetInlineComment(key, comment string) {
 	d.cstDoc.SetInlineComment(key, comment)
 }
-
 func DecodeManeaterConfigInto(data *ManeaterConfig, doc *document.Document, container *cst.Node, consumed map[string]bool, keyPrefix string) error {
-	if v, err := document.GetFromContainer[string](doc, container, "default"); err == nil {
-		data.Default = v
-		consumed[keyPrefix+"default"] = true
-	}
-	{
-		subTables := doc.FindSubTablesInContainer(container, "models")
-		if len(subTables) > 0 {
-			consumed[keyPrefix+"models"] = true
-			data.Models = make(map[string]ModelConfig)
-			for _, subTable := range subTables {
-				mapKey := document.SubTableKeyInContainer(subTable, container, "models")
-				consumed[keyPrefix+"models"+"."+mapKey] = true
-				var entry ModelConfig
-				if v, err := document.GetFromContainer[string](doc, subTable, "path"); err == nil {
-					entry.Path = v
-					consumed[keyPrefix+"models.path"] = true
-				}
-				if v, err := document.GetFromContainer[string](doc, subTable, "query-prefix"); err == nil {
-					entry.QueryPrefix = v
-					consumed[keyPrefix+"models.query-prefix"] = true
-				}
-				if v, err := document.GetFromContainer[string](doc, subTable, "document-prefix"); err == nil {
-					entry.DocumentPrefix = v
-					consumed[keyPrefix+"models.document-prefix"] = true
-				}
-				data.Models[mapKey] = entry
+	for _, _kv := range container.Children {
+		if _kv.Kind != cst.NodeKeyValue {
+			continue
+		}
+		switch cst.KeyValueName(_kv) {
+		case "default":
+			if v, ok := cst.ExtractString(_kv); ok {
+				data.Default = v
+				consumed[keyPrefix+"default"] = true
 			}
 		}
 	}
-	if tableNode := doc.FindTableInContainer(container, "manpath"); tableNode != nil {
-		consumed[keyPrefix+"manpath"] = true
-		manpathVal := &ManpathConfig{}
-		if v, err := document.GetFromContainer[[]string](doc, tableNode, "include"); err == nil {
-			manpathVal.Include = v
-			consumed[keyPrefix+"manpath.include"] = true
+	{
+		var _mr map[string]ModelConfig
+		for _, _ch := range doc.Root().Children {
+			if _ch.Kind != cst.NodeTable {
+				continue
+			}
+			_hdr := cst.TableHeaderKey(_ch)
+			if !strings.HasPrefix(_hdr, keyPrefix+"models.") {
+				continue
+			}
+			_mk := _hdr[len(keyPrefix)+len("models."):]
+			if strings.Contains(_mk, ".") {
+				continue
+			}
+			if _mr == nil {
+				consumed[keyPrefix+"models"] = true
+				_mr = make(map[string]ModelConfig)
+			}
+			consumed[keyPrefix+"models"+"."+_mk] = true
+			var entry ModelConfig
+			for _, _kv := range _ch.Children {
+				if _kv.Kind != cst.NodeKeyValue {
+					continue
+				}
+				switch cst.KeyValueName(_kv) {
+				case "path":
+					if v, ok := cst.ExtractString(_kv); ok {
+						entry.Path = v
+						consumed[keyPrefix+keyPrefix+"models."+_mk+"."+"path"] = true
+					}
+				case "query-prefix":
+					if v, ok := cst.ExtractString(_kv); ok {
+						entry.QueryPrefix = v
+						consumed[keyPrefix+keyPrefix+"models."+_mk+"."+"query-prefix"] = true
+					}
+				case "document-prefix":
+					if v, ok := cst.ExtractString(_kv); ok {
+						entry.DocumentPrefix = v
+						consumed[keyPrefix+keyPrefix+"models."+_mk+"."+"document-prefix"] = true
+					}
+				}
+			}
+			_mr[_mk] = entry
 		}
-		if v, err := document.GetFromContainer[bool](doc, tableNode, "no-auto"); err == nil {
-			manpathVal.NoAuto = v
-			consumed[keyPrefix+"manpath.no-auto"] = true
-		}
-		data.Manpath = manpathVal
-	} else {
-		manpathVal := &ManpathConfig{}
-		found := false
-		if v, err := document.GetFromContainer[[]string](doc, container, "include"); err == nil {
-			manpathVal.Include = v
-			consumed[keyPrefix+"include"] = true
-		}
-		if v, err := document.GetFromContainer[bool](doc, container, "no-auto"); err == nil {
-			manpathVal.NoAuto = v
-			found = true
-			consumed[keyPrefix+"no-auto"] = true
-		}
-		if found {
-			data.Manpath = manpathVal
+		if _mr != nil {
+			data.Models = _mr
 		}
 	}
-
+	{
+		var _ftManpath *cst.Node
+		for _, _ch := range doc.Root().Children {
+			if _ch.Kind == cst.NodeTable && cst.TableHeaderKey(_ch) == keyPrefix+"manpath" {
+				_ftManpath = _ch
+				break
+			}
+		}
+		if _ftManpath != nil {
+			consumed[keyPrefix+"manpath"] = true
+			manpathVal := &ManpathConfig{}
+			for _, _kv := range _ftManpath.Children {
+				if _kv.Kind != cst.NodeKeyValue {
+					continue
+				}
+				switch cst.KeyValueName(_kv) {
+				case "include":
+					if v, ok := cst.ExtractStringSlice(_kv); ok {
+						manpathVal.Include = v
+						consumed[keyPrefix+"manpath.include"] = true
+					}
+				case "no-auto":
+					if v, ok := cst.ExtractBool(_kv); ok {
+						manpathVal.NoAuto = v
+						consumed[keyPrefix+"manpath.no-auto"] = true
+					}
+				}
+			}
+			data.Manpath = manpathVal
+		} else {
+			manpathVal := &ManpathConfig{}
+			_found := false
+			for _, _kv := range container.Children {
+				if _kv.Kind != cst.NodeKeyValue {
+					continue
+				}
+				switch cst.KeyValueName(_kv) {
+				case "include":
+					if v, ok := cst.ExtractStringSlice(_kv); ok {
+						manpathVal.Include = v
+						consumed["include"] = true
+					}
+				case "no-auto":
+					if v, ok := cst.ExtractBool(_kv); ok {
+						manpathVal.NoAuto = v
+						_found = true
+						consumed["no-auto"] = true
+					}
+				}
+			}
+			if _found {
+				data.Manpath = manpathVal
+			}
+		}
+	}
 	return nil
 }
-
 func EncodeManeaterConfigFrom(data *ManeaterConfig, doc *document.Document, container *cst.Node) error {
-	if data.Default != "" || doc.HasInContainer(container, "default") {
-		if err := doc.SetInContainer(container, "default", data.Default); err != nil {
-			return err
+	if data.Default != "" || cst.HasValue(container, "default") {
+		if err := cst.SetAny(container, "default", data.Default); err != nil {
+			return fmt.Errorf("%w", err)
 		}
 	}
 	if len(data.Models) > 0 {
 		for mapKey, mapVal := range data.Models {
-			subTable := doc.EnsureSubTableInContainer(container, "models", mapKey)
-			if mapVal.Path != "" || doc.HasInContainer(subTable, "path") {
-				if err := doc.SetInContainer(subTable, "path", mapVal.Path); err != nil {
-					return err
+			subTable := cst.EnsureChildSubTable(doc.Root(), container, "models", mapKey)
+			if mapVal.Path != "" || cst.HasValue(subTable, "path") {
+				if err := cst.SetAny(subTable, "path", mapVal.Path); err != nil {
+					return fmt.Errorf("%w", err)
 				}
 			}
-			if mapVal.QueryPrefix != "" || doc.HasInContainer(subTable, "query-prefix") {
-				if err := doc.SetInContainer(subTable, "query-prefix", mapVal.QueryPrefix); err != nil {
-					return err
+			if mapVal.QueryPrefix != "" || cst.HasValue(subTable, "query-prefix") {
+				if err := cst.SetAny(subTable, "query-prefix", mapVal.QueryPrefix); err != nil {
+					return fmt.Errorf("%w", err)
 				}
 			}
-			if mapVal.DocumentPrefix != "" || doc.HasInContainer(subTable, "document-prefix") {
-				if err := doc.SetInContainer(subTable, "document-prefix", mapVal.DocumentPrefix); err != nil {
-					return err
+			if mapVal.DocumentPrefix != "" || cst.HasValue(subTable, "document-prefix") {
+				if err := cst.SetAny(subTable, "document-prefix", mapVal.DocumentPrefix); err != nil {
+					return fmt.Errorf("%w", err)
 				}
 			}
 		}
 	}
 	if data.Manpath != nil {
-		tableNode := doc.EnsureTableInContainer(container, "manpath")
-		if err := doc.SetInContainer(tableNode, "include", data.Manpath.Include); err != nil {
-			return err
+		tableNode := cst.EnsureChildTable(doc.Root(), container, "manpath")
+		{
+			if err := cst.SetAny(tableNode, "include", data.Manpath.Include); err != nil {
+				return fmt.Errorf("%w", err)
+			}
 		}
-		if data.Manpath.NoAuto != false || doc.HasInContainer(tableNode, "no-auto") {
-			if err := doc.SetInContainer(tableNode, "no-auto", data.Manpath.NoAuto); err != nil {
-				return err
+		if data.Manpath.NoAuto != false || cst.HasValue(tableNode, "no-auto") {
+			if err := cst.SetAny(tableNode, "no-auto", data.Manpath.NoAuto); err != nil {
+				return fmt.Errorf("%w", err)
 			}
 		}
 	}
-
 	return nil
 }
