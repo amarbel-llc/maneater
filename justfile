@@ -1,3 +1,6 @@
+# Build and test
+default: build test
+
 # Build maneater binary
 build:
   go build -o build/maneater ./cmd/maneater
