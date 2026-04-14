@@ -76,9 +76,16 @@ func newApp() *command.App {
 		Name: "index",
 		Description: command.Description{
 			Short: "Build or rebuild the search index",
-			Long: "Loads the embedding model, scans all man pages on the manpath, " +
-				"extracts synopses and tldr descriptions, embeds them, and saves " +
-				"the index to the XDG cache directory.",
+			Long: "Loads the embedding model, scans all configured corpora, " +
+				"embeds their documents, and saves the index to the XDG cache directory. " +
+				"Unchanged documents are skipped (incremental). Use --force for a full rebuild.",
+		},
+		Params: []command.Param{
+			{
+				Name:        "force",
+				Description: "Force full rebuild, ignoring cached entries",
+				Type:        command.Bool,
+			},
 		},
 		RunCLI: func(_ context.Context, _ json.RawMessage) error {
 			return runIndex()
@@ -247,33 +254,39 @@ func (s *searcher) ensureSearchReady() error {
 }
 
 func (s *searcher) loadOrBuildIndex() (*embedding.Index, error) {
+	cfg, err := LoadDefaultManeaterHierarchy()
+	if err != nil {
+		return nil, fmt.Errorf("loading config: %w", err)
+	}
+
 	var combined *embedding.Index
 
 	for _, corpus := range s.corpora {
-		cacheDir := indexCacheDir(corpus.Name(), s.modelName)
+		cc := corpusConfigForCorpus(corpus, cfg)
+		cfgHash := ConfigHash(s.modelCfg, cc)
+		cacheDir := indexCacheDir(corpus.Name(), cfgHash)
 
-		idx, err := embedding.LoadIndex(cacheDir)
-		if err == nil {
+		cached, loadErr := embedding.LoadCachedEntries(cacheDir)
+		if loadErr == nil {
 			fmt.Fprintf(os.Stderr, "maneater: loaded %s index (%d entries) from %s\n",
-				corpus.Name(), len(idx.Entries), cacheDir)
-		} else {
-			fmt.Fprintf(os.Stderr, "maneater: building %s index...\n", corpus.Name())
+				corpus.Name(), len(cached), cacheDir)
 
-			idx, err = buildCorpusIndex(s.embedder, s.modelCfg, corpus, os.Stderr)
-			if err != nil {
-				return nil, fmt.Errorf("building %s index: %w", corpus.Name(), err)
+			idx := embedding.NewIndex(0)
+			for _, e := range cached {
+				idx.Add(e.Key, e.Embedding)
+			}
+			if len(cached) > 0 {
+				idx.Dim = len(cached[0].Embedding)
 			}
 
-			if saveErr := idx.Save(cacheDir); saveErr != nil {
-				fmt.Fprintf(os.Stderr, "maneater: warning: could not cache %s index: %v\n",
-					corpus.Name(), saveErr)
+			if combined == nil {
+				combined = idx
+			} else {
+				combined.Entries = append(combined.Entries, idx.Entries...)
 			}
-		}
-
-		if combined == nil {
-			combined = idx
 		} else {
-			combined.Entries = append(combined.Entries, idx.Entries...)
+			fmt.Fprintf(os.Stderr, "maneater: no index for %s (run 'maneater index' to build)\n",
+				corpus.Name())
 		}
 	}
 
@@ -292,7 +305,7 @@ type pageText struct {
 	tldr     string
 }
 
-func indexCacheDir(corpusName, modelName string) string {
+func indexCacheDir(corpusName, configHash string) string {
 	var base string
 	if xdg := os.Getenv("XDG_CACHE_HOME"); xdg != "" {
 		base = filepath.Join(xdg, "maneater", "index")
@@ -300,45 +313,20 @@ func indexCacheDir(corpusName, modelName string) string {
 		home, _ := os.UserHomeDir()
 		base = filepath.Join(home, ".cache", "maneater", "index")
 	}
-	return filepath.Join(base, corpusName, modelName)
+	return filepath.Join(base, corpusName, configHash)
 }
 
-// buildCorpusIndex builds an embedding index from a Corpus.
-func buildCorpusIndex(emb *embedding.Embedder, cfg ModelConfig, corpus Corpus, logw io.Writer) (*embedding.Index, error) {
-	if err := corpus.Prepare(); err != nil {
-		return nil, fmt.Errorf("preparing corpus %s: %w", corpus.Name(), err)
-	}
-
-	idx := embedding.NewIndex(emb.EmbeddingDim())
-	count := 0
-
-	for doc, err := range corpus.Documents() {
-		if err != nil {
-			fmt.Fprintf(logw, "maneater: skipping document: %v\n", err)
-			continue
-		}
-
-		for _, text := range doc.Texts {
-			docText := cfg.DocumentPrefix + text
-			vec, err := emb.Embed(docText)
-			if err != nil {
-				fmt.Fprintf(logw, "maneater: skipping %s: %v\n", doc.Key, err)
-				continue
-			}
-			idx.Add(doc.Key, vec)
-		}
-
-		count++
-		if count%100 == 0 {
-			fmt.Fprintf(logw, "maneater: [%s] indexed %d documents\n", corpus.Name(), count)
+// corpusConfigForCorpus returns the CorpusConfig matching a corpus by name.
+// Returns a zero-value CorpusConfig for the implicit manpages corpus.
+func corpusConfigForCorpus(c Corpus, cfg ManeaterConfig) CorpusConfig {
+	for _, cc := range cfg.Corpora {
+		if cc.Name == c.Name() {
+			return cc
 		}
 	}
-
-	fmt.Fprintf(logw, "maneater: [%s] indexed %d documents (%d entries)\n",
-		corpus.Name(), count, len(idx.Entries))
-
-	return idx, nil
+	return CorpusConfig{}
 }
+
 
 // indexedSections are the man sections scanned for the search index.
 var indexedSections = []string{"1", "2", "3", "4", "5", "6", "7", "8"}
@@ -849,6 +837,13 @@ func resolveCorpora(cfg ManeaterConfig, manpath []string) ([]Corpus, error) {
 }
 
 func runIndex() error {
+	force := false
+	for _, arg := range os.Args[2:] {
+		if arg == "--force" {
+			force = true
+		}
+	}
+
 	modelName, modelCfg, err := loadActiveModel()
 	if err != nil {
 		return err
@@ -883,20 +878,80 @@ func runIndex() error {
 	defer emb.Close()
 
 	for _, corpus := range corpora {
-		fmt.Printf("Indexing corpus %q...\n", corpus.Name())
+		cc := corpusConfigForCorpus(corpus, cfg)
+		cfgHash := ConfigHash(modelCfg, cc)
+		cacheDir := indexCacheDir(corpus.Name(), cfgHash)
 
-		idx, err := buildCorpusIndex(emb, modelCfg, corpus, os.Stderr)
-		if err != nil {
-			return fmt.Errorf("indexing corpus %s: %w", corpus.Name(), err)
+		// Load existing entries for incremental reuse.
+		existing := make(map[string]embedding.CachedEntry)
+		if !force {
+			if cached, err := embedding.LoadCachedEntries(cacheDir); err == nil {
+				for _, e := range cached {
+					existing[e.Key] = e
+				}
+				fmt.Fprintf(os.Stderr, "maneater: loaded %d cached entries for %s\n",
+					len(existing), corpus.Name())
+			}
 		}
 
-		cacheDir := indexCacheDir(corpus.Name(), modelName)
-		if err := idx.Save(cacheDir); err != nil {
+		if err := corpus.Prepare(); err != nil {
+			return fmt.Errorf("preparing corpus %s: %w", corpus.Name(), err)
+		}
+
+		var entries []embedding.CachedEntry
+		var reusedCount, embeddedCount int
+
+		for doc, docErr := range corpus.Documents() {
+			if docErr != nil {
+				fmt.Fprintf(os.Stderr, "maneater: skipping document: %v\n", docErr)
+				continue
+			}
+
+			// Check if we can reuse the existing entry.
+			if cached, ok := existing[doc.Key]; ok && cached.Hash == doc.Hash {
+				entries = append(entries, cached)
+				reusedCount++
+				continue
+			}
+
+			// Embed all text chunks for this document.
+			for _, text := range doc.Texts {
+				docText := modelCfg.DocumentPrefix + text
+				vec, embErr := emb.Embed(docText)
+				if embErr != nil {
+					fmt.Fprintf(os.Stderr, "maneater: skipping %s: %v\n", doc.Key, embErr)
+					continue
+				}
+				entries = append(entries, embedding.CachedEntry{
+					Key:       doc.Key,
+					Hash:      doc.Hash,
+					Embedding: vec,
+				})
+			}
+			embeddedCount++
+
+			total := reusedCount + embeddedCount
+			if total%100 == 0 {
+				fmt.Fprintf(os.Stderr, "maneater: [%s] processed %d documents (%d reused, %d embedded)\n",
+					corpus.Name(), total, reusedCount, embeddedCount)
+			}
+		}
+
+		if err := embedding.SaveCachedEntries(cacheDir, entries); err != nil {
 			return fmt.Errorf("saving index for %s: %w", corpus.Name(), err)
 		}
 
-		fmt.Printf("Done: %s — %d entries saved to %s\n",
-			corpus.Name(), len(idx.Entries), cacheDir)
+		meta := IndexMeta{
+			ModelPath:      modelCfg.Path,
+			DocumentPrefix: modelCfg.DocumentPrefix,
+			ConfigHash:     cfgHash,
+		}
+		if err := SaveMeta(cacheDir, meta); err != nil {
+			fmt.Fprintf(os.Stderr, "maneater: warning: could not save meta.json: %v\n", err)
+		}
+
+		fmt.Printf("Done: %s — %d entries (%d reused, %d embedded) saved to %s\n",
+			corpus.Name(), len(entries), reusedCount, embeddedCount, cacheDir)
 	}
 
 	return nil
