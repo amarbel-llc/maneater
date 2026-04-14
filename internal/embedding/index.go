@@ -55,4 +55,3 @@ func (idx *Index) Search(query []float32, topK int) []Result {
 
 	return results
 }
-

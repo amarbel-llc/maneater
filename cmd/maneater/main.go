@@ -327,7 +327,6 @@ func corpusConfigForCorpus(c Corpus, cfg ManeaterConfig) CorpusConfig {
 	return CorpusConfig{}
 }
 
-
 // indexedSections are the man sections scanned for the search index.
 var indexedSections = []string{"1", "2", "3", "4", "5", "6", "7", "8"}
 
