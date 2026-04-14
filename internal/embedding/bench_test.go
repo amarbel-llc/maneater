@@ -81,6 +81,40 @@ func BenchmarkEmbedLong(b *testing.B) {
 	}
 }
 
+// BenchmarkBatchEmbed measures embedding N short texts in a single
+// llama_encode call vs N separate calls, to quantify batching gains.
+func BenchmarkBatchEmbed(b *testing.B) {
+	emb := newBenchEmbedder(b)
+
+	texts := []string{
+		"search_document: ls - list directory contents",
+		"search_document: cat - concatenate and print files",
+		"search_document: grep - file pattern searcher",
+		"search_document: sed - stream editor for filtering and transforming text",
+		"search_document: awk - pattern-directed scanning and processing language",
+	}
+
+	b.Run("Sequential_5x", func(b *testing.B) {
+		b.ResetTimer()
+		for b.Loop() {
+			for _, text := range texts {
+				if _, err := emb.Embed(text); err != nil {
+					b.Fatal(err)
+				}
+			}
+		}
+	})
+
+	b.Run("Batched_5x", func(b *testing.B) {
+		b.ResetTimer()
+		for b.Loop() {
+			if _, err := emb.BatchEmbed(texts); err != nil {
+				b.Fatal(err)
+			}
+		}
+	})
+}
+
 // BenchmarkCacheSaveLoad measures the JSONL serialization round-trip for
 // a realistic index size (1000 entries with 1024-dim embeddings).
 func BenchmarkCacheSaveLoad(b *testing.B) {
