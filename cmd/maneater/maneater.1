@@ -1,36 +1,44 @@
-.Dd April 11, 2026
+.Dd April 14, 2026
 .Dt MANEATER 1
 .Os
 .Sh NAME
 .Nm maneater
-.Nd man page search index and semantic search CLI
+.Nd local semantic search with pluggable document sources
 .Sh SYNOPSIS
 .Nm
 .Cm index
+.Op Fl -force
 .Nm
 .Cm search
 .Ar query
 .Op Fl -top-k Ar N
 .Sh DESCRIPTION
 .Nm
-builds and queries a semantic search index over Unix man pages using vector
-embeddings.
-It extracts synopses and tldr descriptions, embeds them with a configurable
-model (snowflake-arctic-embed-l-v2.0 by default in the Nix wrapper), and
-supports ranked search by natural language query.
+builds and queries semantic search indexes over pluggable document sources
+using vector embeddings.
+Man pages are the default built-in corpus; additional corpus types (files,
+external commands) allow indexing arbitrary text collections.
+See
+.Xr maneater.toml 5
+for corpus configuration.
 .Pp
 The following commands are available:
 .Bl -tag -width "search"
-.It Cm index
-Build or rebuild the search index with progress output to stdout.
+.It Cm index Op Fl -force
+Build or incrementally update the search index.
+Unchanged documents (identified by content hash) are skipped; only new or
+modified documents are embedded.
+Use
+.Fl -force
+to ignore cached entries and rebuild from scratch.
 The index is saved to the cache directory (see
 .Sx FILES )
 and reused by subsequent
 .Cm search
 invocations.
 .It Cm search Ar query Op Fl -top-k Ar N
-Search for man pages by natural language query.
-Returns ranked results with page names and cosine similarity scores.
+Search across all configured corpora by natural language query.
+Returns ranked results with document keys and cosine similarity scores.
 Requires a pre-built index
 .Pq Cm maneater index .
 The default result count is 10; use
@@ -132,19 +140,27 @@ See
 for the full hierarchy.
 .El
 .Sh FILES
-.Bl -tag -width "$XDG_CACHE_HOME/maneater/man-index/"
-.It Pa $XDG_CACHE_HOME/maneater/man-index/
-Cached search index.
-Contains
-.Pa pages.txt
-and
-.Pa embeddings.jsonl .
+.Bl -tag -width "$XDG_CACHE_HOME/maneater/index/"
+.It Pa $XDG_CACHE_HOME/maneater/index/
+Cached search indexes, organized as:
+.Pp
+.D1 Pa {corpusName}/{configHash}/entries.jsonl
+.D1 Pa {corpusName}/{configHash}/meta.json
+.Pp
+The
+.Pa configHash
+is derived from the model path, document prefix, and corpus parameters.
+Changing any of these creates a new cache directory.
+.Pa entries.jsonl
+contains one JSON object per document with key, content hash, and embedding.
+.Pa meta.json
+records the full config snapshot for debuggability.
 Safe to delete; will be rebuilt on next
 .Cm index
 invocation.
 .El
 .Sh SEE ALSO
-.Xr maneater.toml 5 ,
 .Xr mandoc 1 ,
 .Xr pandoc 1 ,
-.Xr tldr 1
+.Xr tldr 1 ,
+.Xr maneater.toml 5

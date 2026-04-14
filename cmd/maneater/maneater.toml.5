@@ -1,4 +1,4 @@
-.Dd April 11, 2026
+.Dd April 14, 2026
 .Dt MANEATER.TOML 5
 .Os
 .Sh NAME
@@ -9,7 +9,7 @@
 is the configuration file for
 .Xr maneater 1 .
 It uses TOML format and controls model selection, embedding prefixes,
-and manpath discovery.
+manpath discovery, and corpus definitions.
 .Sh FILE HIERARCHY
 Configuration files are loaded and merged in order:
 .Bl -enum
@@ -143,6 +143,90 @@ To disable heuristic probing in a project:
 [manpath]
 no-auto = true
 .Ed
+.Sh CORPORA
+Corpora define the document sources to index and search.
+Each corpus is an array-of-tables entry under
+.Va [[corpora]] .
+.Pp
+When no
+.Va [[corpora]]
+sections are present, an implicit manpages corpus is used.
+When any
+.Va [[corpora]]
+sections are defined, only those corpora are indexed.
+To include man pages alongside other corpora, add an explicit manpages entry.
+.Pp
+All corpus types share these fields:
+.Bl -tag -width "max-chars"
+.It Va name
+Unique identifier for the corpus.
+Used as the cache directory name.
+Required for
+.Va files
+and
+.Va command
+types.
+.It Va type
+Corpus type.
+One of
+.Cm manpages ,
+.Cm files ,
+or
+.Cm command .
+Required.
+.It Va max-chars
+Maximum characters per document text.
+Longer texts are truncated before embedding.
+Default: 500.
+Optional.
+.El
+.Ss manpages
+Scans the system manpath (and any configured include paths) for man pages.
+Extracts synopses via
+.Xr mandoc 1
+and
+.Xr pandoc 1 ,
+and enriches with
+.Xr tldr 1
+descriptions.
+No additional fields required.
+.Bd -literal -offset indent
+[[corpora]]
+type = "manpages"
+.Ed
+.Ss files
+Indexes text files matching glob patterns.
+Binary files (detected by null bytes) are skipped.
+.Bl -tag -width "paths"
+.It Va paths
+Array of glob patterns to match files.
+Required.
+.El
+.Bd -literal -offset indent
+[[corpora]]
+name = "project-docs"
+type = "files"
+paths = ["docs/**/*.md", "README.md"]
+max-chars = 1000
+.Ed
+.Ss command
+Indexes documents produced by external commands.
+.Bl -tag -width "read-cmd"
+.It Va list-cmd
+Command array that outputs one document key per line to stdout.
+Required.
+.It Va read-cmd
+Command array that receives a key as its final argument and outputs
+document text to stdout.
+Required.
+.El
+.Bd -literal -offset indent
+[[corpora]]
+name = "wiki"
+type = "command"
+list-cmd = ["wiki-tool", "list"]
+read-cmd = ["wiki-tool", "read"]
+.Ed
 .Sh EXAMPLES
 Minimal configuration with a single model (no
 .Va default
@@ -151,6 +235,18 @@ needed):
 [models.snowflake]
 path = "/opt/models/snowflake-arctic-embed-l-v2.0-q8_0.gguf"
 query-prefix = "query: "
+.Ed
+.Pp
+Index Go source files in a project alongside man pages:
+.Bd -literal -offset indent
+[[corpora]]
+type = "manpages"
+
+[[corpora]]
+name = "project-src"
+type = "files"
+paths = ["cmd/**/*.go", "internal/**/*.go"]
+max-chars = 1000
 .Ed
 .Sh ENVIRONMENT
 .Bl -tag -width "MANEATER_CONFIG"
