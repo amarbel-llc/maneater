@@ -4,7 +4,9 @@ import (
 	"bytes"
 	"compress/gzip"
 	"context"
+	"crypto/sha256"
 	"embed"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -285,6 +287,7 @@ func (s *searcher) loadOrBuildIndex() (*embedding.Index, error) {
 type pageText struct {
 	index    int
 	page     string
+	hash     string
 	synopsis string
 	tldr     string
 }
@@ -565,6 +568,16 @@ func locateSource(manpath []string, section, page string) (string, error) {
 	return "", fmt.Errorf("no manual entry for %s", page)
 }
 
+// hashFile returns the hex SHA256 of a file's contents, or empty string on error.
+func hashFile(path string) string {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return ""
+	}
+	h := sha256.Sum256(data)
+	return hex.EncodeToString(h[:])
+}
+
 // renderMarkdown converts a roff source file to markdown via mandoc and pandoc.
 // Pipeline: mandoc -T man <path> | pandoc -f man -t markdown
 //
@@ -755,10 +768,17 @@ func (c *manpagesCorpus) Documents() iter.Seq2[Document, error] {
 					go func(seq int, page string) {
 						defer wg.Done()
 						defer func() { <-sem }()
+						name, section := parsePageKey(page)
+						sourcePath, _ := locateSource(c.manpath, section, name)
+						fileHash := ""
+						if sourcePath != "" {
+							fileHash = hashFile(sourcePath)
+						}
 						results <- indexed{
 							pt: pageText{
 								index:    seq,
 								page:     page,
+								hash:     fileHash,
 								synopsis: extractSynopsis(c.manpath, page),
 								tldr:     extractTldr(page),
 							},
@@ -796,7 +816,7 @@ func (c *manpagesCorpus) Documents() iter.Seq2[Document, error] {
 			if len(chunks) == 0 {
 				continue
 			}
-			if !yield(Document{Key: pt.page, Texts: chunks}, nil) {
+			if !yield(Document{Key: pt.page, Hash: pt.hash, Texts: chunks}, nil) {
 				return
 			}
 		}

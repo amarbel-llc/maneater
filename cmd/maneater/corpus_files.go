@@ -2,6 +2,8 @@ package main
 
 import (
 	"bytes"
+	"crypto/sha256"
+	"encoding/hex"
 	"iter"
 	"os"
 	"path/filepath"
@@ -47,12 +49,15 @@ func (c *FilesCorpus) Documents() iter.Seq2[Document, error] {
 				continue
 			}
 
+			h := sha256.Sum256(content)
+			hashHex := hex.EncodeToString(h[:])
+
 			text := string(content)
 			if len(text) > maxChars {
 				text = text[:maxChars]
 			}
 
-			if !yield(Document{Key: path, Texts: []string{text}}, nil) {
+			if !yield(Document{Key: path, Hash: hashHex, Texts: []string{text}}, nil) {
 				return
 			}
 		}
