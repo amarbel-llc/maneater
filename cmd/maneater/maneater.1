@@ -1,4 +1,4 @@
-.Dd April 14, 2026
+.Dd April 17, 2026
 .Dt MANEATER 1
 .Os
 .Sh NAME
@@ -8,6 +8,8 @@
 .Nm
 .Cm index
 .Op Fl -force
+.Nm
+.Cm init-store
 .Nm
 .Cm search
 .Ar query
@@ -36,6 +38,14 @@ The index is saved to the cache directory (see
 and reused by subsequent
 .Cm search
 invocations.
+.It Cm init-store
+Initialize the blob storage backend.
+Sets up the default
+.Xr madder 1
+content-addressed blob store for sharing indexes across machines.
+Creates an XDG user store with the configured store ID
+.Pq default: Dq maneater .
+Safe to run multiple times; exits immediately if the store already exists.
 .It Cm search Ar query Op Fl -top-k Ar N
 Search across all configured corpora by natural language query.
 Returns ranked results with document keys and cosine similarity scores.
@@ -94,6 +104,31 @@ query-prefix = "search_query: "
 document-prefix = "search_document: "
 EOF
 .Ed
+.Sh BLOB STORAGE
+After building an index,
+.Nm
+writes the index as a single blob to a content-addressed store.
+On subsequent searches, if the local cache is missing but a manifest is
+present, the blob is fetched from the store and the local cache is
+repopulated.
+This allows pre-built indexes to be shared across machines.
+.Pp
+The default backend is
+.Xr madder 1 ,
+which must be initialized before first use:
+.Bd -literal -offset indent
+maneater init-store
+.Ed
+.Pp
+The storage backend is configurable via the
+.Va [storage]
+section in
+.Xr maneater.toml 5 .
+When no
+.Va [storage]
+section is present, the default madder commands are used with
+store ID
+.Dq maneater .
 .Sh ENVIRONMENT
 .Bl -tag -width "MANEATER_CONFIG"
 .It Ev MANEATER_CONFIG
@@ -158,8 +193,15 @@ records the full config snapshot for debuggability.
 Safe to delete; will be rebuilt on next
 .Cm index
 invocation.
+.It Pa {corpusName}/{configHash}/manifest.json
+Records the content-addressed blob digest and config hash from the last
+successful blob store write.
+When the local cache is missing but a manifest exists,
+.Cm search
+fetches the index blob from the configured storage backend.
 .El
 .Sh SEE ALSO
+.Xr madder 1 ,
 .Xr mandoc 1 ,
 .Xr pandoc 1 ,
 .Xr tldr 1 ,

@@ -1,4 +1,4 @@
-.Dd April 14, 2026
+.Dd April 17, 2026
 .Dt MANEATER.TOML 5
 .Os
 .Sh NAME
@@ -39,6 +39,10 @@ Manpath include lists accumulate: they are appended across hierarchy levels.
 The
 .Va manpath.no-auto
 field is replaced entirely if present in an overlay.
+The
+.Va storage
+table is replaced entirely if present in an overlay
+.Pq not merged field-by-field .
 .Sh TOP-LEVEL KEYS
 .Bl -tag -width "default"
 .It Va default
@@ -227,6 +231,62 @@ type = "command"
 list-cmd = ["wiki-tool", "list"]
 read-cmd = ["wiki-tool", "read"]
 .Ed
+.Sh STORAGE
+The
+.Va storage
+table configures the blob storage backend used to persist and share
+indexes across machines.
+See
+.Xr maneater 1
+.Sx BLOB STORAGE
+for an overview.
+.Pp
+When no
+.Va [storage]
+section is present, the default backend is
+.Xr madder 1
+with store ID
+.Dq maneater :
+.Bd -literal -offset indent
+[storage]
+read-cmd = ["madder", "cat"]
+write-cmd = ["madder", "write", "maneater", "-"]
+store-id = "maneater"
+.Ed
+.Bl -tag -width "write-cmd"
+.It Va read-cmd
+Command array that reads a blob by digest.
+The blob digest is appended as a final argument.
+The command must write the blob contents to stdout.
+Default:
+.Oo Dq madder , Dq cat Oc .
+.It Va write-cmd
+Command array that writes a blob.
+Data is piped to stdin.
+The command must print a content-addressed digest to stdout.
+The digest is parsed as the first colon-containing token on the last
+non-empty line of output
+.Pq compatible with TAP format .
+Default:
+.Oo Dq madder , Dq write , Dq maneater , Dq - Oc .
+.It Va store-id
+Identifier for the blob store.
+Used by
+.Cm init-store
+to create the store and by the default
+.Va write-cmd
+as a positional argument.
+Default:
+.Dq maneater .
+.El
+.Pp
+To use a custom storage backend:
+.Bd -literal -offset indent
+[storage]
+read-cmd = ["my-store", "get"]
+write-cmd = ["my-store", "put"]
+store-id = "my-index-store"
+.Ed
 .Sh EXAMPLES
 Minimal configuration with a single model (no
 .Va default
@@ -261,5 +321,6 @@ Defaults to
 .Pa ~/.config .
 .El
 .Sh SEE ALSO
+.Xr madder 1 ,
 .Xr maneater 1 ,
 .Xr toml 5
