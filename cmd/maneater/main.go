@@ -347,13 +347,16 @@ func fetchIndexFromBlobStore(cfg ManeaterConfig, cfgHash, cacheDir string) ([]em
 		return nil, fmt.Errorf("fetching blob %s: %w", manifest.BlobDigest, err)
 	}
 
-	_, entries, err := embedding.UnmarshalIndexBlob(blob)
+	meta, entries, err := embedding.UnmarshalIndexBlob(blob)
 	if err != nil {
 		return nil, fmt.Errorf("deserializing blob: %w", err)
 	}
 
 	if cacheErr := embedding.SaveCachedEntries(cacheDir, entries); cacheErr != nil {
 		fmt.Fprintf(os.Stderr, "maneater: warning: could not cache entries locally: %v\n", cacheErr)
+	}
+	if cacheErr := embedding.SaveMeta(cacheDir, meta); cacheErr != nil {
+		fmt.Fprintf(os.Stderr, "maneater: warning: could not cache meta locally: %v\n", cacheErr)
 	}
 
 	return entries, nil
