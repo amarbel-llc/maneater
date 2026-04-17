@@ -4,10 +4,9 @@ package main
 
 import (
 	"fmt"
-	"strings"
-
 	"github.com/amarbel-llc/tommy/pkg/cst"
 	"github.com/amarbel-llc/tommy/pkg/document"
+	"strings"
 )
 
 var (
@@ -148,6 +147,71 @@ func DecodeManeaterConfig(input []byte) (*ManeaterConfigDocument, error) {
 			}
 		}
 	}
+	{
+		var _ftStorage *cst.Node
+		for _, _ch := range d.cstDoc.Root().Children {
+			if _ch.Kind == cst.NodeTable && cst.TableHeaderKey(_ch) == "storage" {
+				_ftStorage = _ch
+				break
+			}
+		}
+		if _ftStorage != nil {
+			d.consumed["storage"] = true
+			storageVal := &StorageConfig{}
+			for _, _kv := range _ftStorage.Children {
+				if _kv.Kind != cst.NodeKeyValue {
+					continue
+				}
+				switch cst.KeyValueName(_kv) {
+				case "read-cmd":
+					if v, ok := cst.ExtractStringSlice(_kv); ok {
+						storageVal.ReadCmd = v
+						d.consumed["storage.read-cmd"] = true
+					}
+				case "write-cmd":
+					if v, ok := cst.ExtractStringSlice(_kv); ok {
+						storageVal.WriteCmd = v
+						d.consumed["storage.write-cmd"] = true
+					}
+				case "store-id":
+					if v, ok := cst.ExtractString(_kv); ok {
+						storageVal.StoreID = v
+						d.consumed["storage.store-id"] = true
+					}
+				}
+			}
+			d.data.Storage = storageVal
+		} else {
+			storageVal := &StorageConfig{}
+			_found := false
+			for _, _kv := range d.cstDoc.Root().Children {
+				if _kv.Kind != cst.NodeKeyValue {
+					continue
+				}
+				switch cst.KeyValueName(_kv) {
+				case "read-cmd":
+					if v, ok := cst.ExtractStringSlice(_kv); ok {
+						storageVal.ReadCmd = v
+						d.consumed["read-cmd"] = true
+					}
+				case "write-cmd":
+					if v, ok := cst.ExtractStringSlice(_kv); ok {
+						storageVal.WriteCmd = v
+						d.consumed["write-cmd"] = true
+					}
+				case "store-id":
+					if v, ok := cst.ExtractString(_kv); ok {
+						storageVal.StoreID = v
+						_found = true
+						d.consumed["store-id"] = true
+					}
+				}
+			}
+			if _found {
+				d.data.Storage = storageVal
+			}
+		}
+	}
 	return d, nil
 }
 func (d *ManeaterConfigDocument) Data() *ManeaterConfig {
@@ -188,6 +252,24 @@ func (d *ManeaterConfigDocument) Encode() ([]byte, error) {
 		}
 		if d.data.Manpath.NoAuto != false || cst.HasValue(tableNode, "no-auto") {
 			if err := cst.SetAny(tableNode, "no-auto", d.data.Manpath.NoAuto); err != nil {
+				return nil, fmt.Errorf("%w", err)
+			}
+		}
+	}
+	if d.data.Storage != nil {
+		tableNode := cst.EnsureChildTable(d.cstDoc.Root(), d.cstDoc.Root(), "storage")
+		{
+			if err := cst.SetAny(tableNode, "read-cmd", d.data.Storage.ReadCmd); err != nil {
+				return nil, fmt.Errorf("%w", err)
+			}
+		}
+		{
+			if err := cst.SetAny(tableNode, "write-cmd", d.data.Storage.WriteCmd); err != nil {
+				return nil, fmt.Errorf("%w", err)
+			}
+		}
+		if d.data.Storage.StoreID != "" || cst.HasValue(tableNode, "store-id") {
+			if err := cst.SetAny(tableNode, "store-id", d.data.Storage.StoreID); err != nil {
 				return nil, fmt.Errorf("%w", err)
 			}
 		}
@@ -325,6 +407,71 @@ func DecodeManeaterConfigInto(data *ManeaterConfig, doc *document.Document, cont
 			}
 		}
 	}
+	{
+		var _ftStorage *cst.Node
+		for _, _ch := range doc.Root().Children {
+			if _ch.Kind == cst.NodeTable && cst.TableHeaderKey(_ch) == keyPrefix+"storage" {
+				_ftStorage = _ch
+				break
+			}
+		}
+		if _ftStorage != nil {
+			consumed[keyPrefix+"storage"] = true
+			storageVal := &StorageConfig{}
+			for _, _kv := range _ftStorage.Children {
+				if _kv.Kind != cst.NodeKeyValue {
+					continue
+				}
+				switch cst.KeyValueName(_kv) {
+				case "read-cmd":
+					if v, ok := cst.ExtractStringSlice(_kv); ok {
+						storageVal.ReadCmd = v
+						consumed[keyPrefix+"storage.read-cmd"] = true
+					}
+				case "write-cmd":
+					if v, ok := cst.ExtractStringSlice(_kv); ok {
+						storageVal.WriteCmd = v
+						consumed[keyPrefix+"storage.write-cmd"] = true
+					}
+				case "store-id":
+					if v, ok := cst.ExtractString(_kv); ok {
+						storageVal.StoreID = v
+						consumed[keyPrefix+"storage.store-id"] = true
+					}
+				}
+			}
+			data.Storage = storageVal
+		} else {
+			storageVal := &StorageConfig{}
+			_found := false
+			for _, _kv := range container.Children {
+				if _kv.Kind != cst.NodeKeyValue {
+					continue
+				}
+				switch cst.KeyValueName(_kv) {
+				case "read-cmd":
+					if v, ok := cst.ExtractStringSlice(_kv); ok {
+						storageVal.ReadCmd = v
+						consumed["read-cmd"] = true
+					}
+				case "write-cmd":
+					if v, ok := cst.ExtractStringSlice(_kv); ok {
+						storageVal.WriteCmd = v
+						consumed["write-cmd"] = true
+					}
+				case "store-id":
+					if v, ok := cst.ExtractString(_kv); ok {
+						storageVal.StoreID = v
+						_found = true
+						consumed["store-id"] = true
+					}
+				}
+			}
+			if _found {
+				data.Storage = storageVal
+			}
+		}
+	}
 	return nil
 }
 func EncodeManeaterConfigFrom(data *ManeaterConfig, doc *document.Document, container *cst.Node) error {
@@ -362,6 +509,24 @@ func EncodeManeaterConfigFrom(data *ManeaterConfig, doc *document.Document, cont
 		}
 		if data.Manpath.NoAuto != false || cst.HasValue(tableNode, "no-auto") {
 			if err := cst.SetAny(tableNode, "no-auto", data.Manpath.NoAuto); err != nil {
+				return fmt.Errorf("%w", err)
+			}
+		}
+	}
+	if data.Storage != nil {
+		tableNode := cst.EnsureChildTable(doc.Root(), container, "storage")
+		{
+			if err := cst.SetAny(tableNode, "read-cmd", data.Storage.ReadCmd); err != nil {
+				return fmt.Errorf("%w", err)
+			}
+		}
+		{
+			if err := cst.SetAny(tableNode, "write-cmd", data.Storage.WriteCmd); err != nil {
+				return fmt.Errorf("%w", err)
+			}
+		}
+		if data.Storage.StoreID != "" || cst.HasValue(tableNode, "store-id") {
+			if err := cst.SetAny(tableNode, "store-id", data.Storage.StoreID); err != nil {
 				return fmt.Errorf("%w", err)
 			}
 		}

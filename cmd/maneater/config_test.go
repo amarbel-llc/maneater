@@ -359,6 +359,109 @@ paths = ["*.md"]
 	}
 }
 
+func TestParseStorageConfig(t *testing.T) {
+	input := []byte(`
+[storage]
+read-cmd = ["aws", "s3", "cp"]
+write-cmd = ["aws", "s3", "cp", "-"]
+store-id = "my-bucket"
+`)
+	doc, err := DecodeManeaterConfig(input)
+	if err != nil {
+		t.Fatalf("parse error: %v", err)
+	}
+	cfg := doc.Data()
+	if cfg.Storage == nil {
+		t.Fatal("storage config should not be nil")
+	}
+	if len(cfg.Storage.ReadCmd) != 3 {
+		t.Fatalf("expected 3 read-cmd args, got %d", len(cfg.Storage.ReadCmd))
+	}
+	if cfg.Storage.ReadCmd[0] != "aws" {
+		t.Errorf("read-cmd[0] = %q, want aws", cfg.Storage.ReadCmd[0])
+	}
+	if cfg.Storage.StoreID != "my-bucket" {
+		t.Errorf("store-id = %q, want my-bucket", cfg.Storage.StoreID)
+	}
+}
+
+func TestMergeConfigStorageOverlayReplaces(t *testing.T) {
+	base := ManeaterConfig{
+		Storage: &StorageConfig{
+			ReadCmd:  []string{"old", "read"},
+			WriteCmd: []string{"old", "write"},
+			StoreID:  "old-store",
+		},
+	}
+	overlay := ManeaterConfig{
+		Storage: &StorageConfig{
+			ReadCmd:  []string{"new", "read"},
+			WriteCmd: []string{"new", "write"},
+			StoreID:  "new-store",
+		},
+	}
+
+	merged := MergeConfig(base, overlay)
+	if merged.Storage == nil {
+		t.Fatal("merged storage should not be nil")
+	}
+	if merged.Storage.StoreID != "new-store" {
+		t.Errorf("store-id = %q, want new-store", merged.Storage.StoreID)
+	}
+	if merged.Storage.ReadCmd[0] != "new" {
+		t.Errorf("read-cmd[0] = %q, want new", merged.Storage.ReadCmd[0])
+	}
+}
+
+func TestMergeConfigStorageBasePreserved(t *testing.T) {
+	base := ManeaterConfig{
+		Storage: &StorageConfig{
+			ReadCmd: []string{"base", "read"},
+			StoreID: "base-store",
+		},
+	}
+	overlay := ManeaterConfig{}
+
+	merged := MergeConfig(base, overlay)
+	if merged.Storage == nil {
+		t.Fatal("base storage should be preserved when overlay has none")
+	}
+	if merged.Storage.StoreID != "base-store" {
+		t.Errorf("store-id = %q, want base-store", merged.Storage.StoreID)
+	}
+}
+
+func TestResolveStorageDefaults(t *testing.T) {
+	cfg := ManeaterConfig{}
+	sc := resolveStorage(cfg)
+	if sc.StoreID != "maneater" {
+		t.Errorf("default store-id = %q, want maneater", sc.StoreID)
+	}
+	if len(sc.ReadCmd) == 0 || sc.ReadCmd[0] != "madder" {
+		t.Errorf("default read-cmd should start with madder")
+	}
+	if len(sc.WriteCmd) < 3 || sc.WriteCmd[2] != "maneater" {
+		t.Errorf("default write-cmd should include store-id 'maneater'")
+	}
+}
+
+func TestResolveStorageExplicit(t *testing.T) {
+	cfg := ManeaterConfig{
+		Storage: &StorageConfig{
+			ReadCmd:  []string{"custom", "read"},
+			WriteCmd: []string{"custom", "write"},
+			StoreID:  "custom",
+		},
+	}
+	sc := resolveStorage(cfg)
+	if sc.StoreID != "custom" {
+		t.Errorf("store-id = %q, want custom", sc.StoreID)
+	}
+	if sc.ReadCmd[0] != "custom" {
+		t.Errorf("read-cmd[0] = %q, want custom", sc.ReadCmd[0])
+	}
+}
+
 func TestParseManpathConfig(t *testing.T) {
 	input := []byte(`
 [manpath]

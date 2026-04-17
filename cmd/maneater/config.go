@@ -16,6 +16,7 @@ type ManeaterConfig struct {
 	Default string                 `toml:"default"`
 	Models  map[string]ModelConfig `toml:"models"`
 	Manpath *ManpathConfig         `toml:"manpath"`
+	Storage *StorageConfig         `toml:"storage"`
 	Corpora []CorpusConfig         `toml:"-"` // decoded manually from [[corpora]]
 }
 
@@ -41,6 +42,12 @@ type ModelConfig struct {
 	Path           string `toml:"path"`
 	QueryPrefix    string `toml:"query-prefix"`
 	DocumentPrefix string `toml:"document-prefix"`
+}
+
+type StorageConfig struct {
+	ReadCmd  []string `toml:"read-cmd"`
+	WriteCmd []string `toml:"write-cmd"`
+	StoreID  string   `toml:"store-id"`
 }
 
 func globalConfigDir() string {
@@ -146,6 +153,12 @@ func MergeConfig(base, overlay ManeaterConfig) ManeaterConfig {
 
 	// Accumulate corpora across hierarchy levels.
 	merged.Corpora = append(merged.Corpora, overlay.Corpora...)
+
+	// Overlay storage replaces base entirely.
+	if overlay.Storage != nil {
+		cp := *overlay.Storage
+		merged.Storage = &cp
+	}
 
 	// Accumulate manpath include paths; overlay's no-auto replaces base's.
 	if overlay.Manpath != nil {
@@ -257,6 +270,20 @@ func corpusFromConfig(cc CorpusConfig) (Corpus, error) {
 		}, nil
 	default:
 		return nil, fmt.Errorf("unknown corpus type %q", cc.Type)
+	}
+}
+
+// resolveStorage returns the effective storage config. When no [storage]
+// section is configured, it returns madder defaults targeting the "maneater"
+// store.
+func resolveStorage(cfg ManeaterConfig) StorageConfig {
+	if cfg.Storage != nil {
+		return *cfg.Storage
+	}
+	return StorageConfig{
+		ReadCmd:  []string{"madder", "cat"},
+		WriteCmd: []string{"madder", "write", "maneater", "-"},
+		StoreID:  "maneater",
 	}
 }
 
