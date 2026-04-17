@@ -24,6 +24,12 @@
       inputs.nixpkgs-master.follows = "nixpkgs-master";
       inputs.utils.follows = "utils";
     };
+
+    madder = {
+      url = "github:amarbel-llc/madder";
+      inputs.nixpkgs.follows = "nixpkgs";
+      inputs.utils.follows = "utils";
+    };
   };
 
   outputs =
@@ -35,6 +41,7 @@
       gomod2nix,
       tommy,
       bob,
+      madder,
     }:
     utils.lib.eachDefaultSystem (
       system:
@@ -101,6 +108,7 @@
                     pkgs.pandoc
                     pkgs.tldr
                     pkgs-master.go_1_26
+                    madder.packages.${system}.default
                   ]
                 } \
                 --set MANEATER_CONFIG ${maneater-models-toml}
@@ -124,11 +132,11 @@
             gomod2nix.packages.${system}.default
             pkgs.just
             pkgs.llama-cpp
-            pkgs.mandoc
             pkgs.pandoc
             pkgs.pkg-config
             pkgs.ripgrep
             tommy.packages.${system}.default
+            madder.packages.${system}.default
           ];
         };
       }
