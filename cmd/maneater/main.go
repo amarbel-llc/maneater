@@ -284,6 +284,23 @@ func (s *searcher) loadOrBuildIndex() (*embedding.Index, error) {
 			} else {
 				combined.Entries = append(combined.Entries, idx.Entries...)
 			}
+		} else if cached, fetchErr := fetchIndexFromBlobStore(cfg, cfgHash, cacheDir); fetchErr == nil {
+			fmt.Fprintf(os.Stderr, "maneater: fetched %s index (%d entries) from blob store\n",
+				corpus.Name(), len(cached))
+
+			idx := embedding.NewIndex(0)
+			for _, e := range cached {
+				idx.Add(e.Key, e.Embedding)
+			}
+			if len(cached) > 0 {
+				idx.Dim = len(cached[0].Embedding)
+			}
+
+			if combined == nil {
+				combined = idx
+			} else {
+				combined.Entries = append(combined.Entries, idx.Entries...)
+			}
 		} else {
 			fmt.Fprintf(os.Stderr, "maneater: no index for %s (run 'maneater index' to build)\n",
 				corpus.Name())
@@ -295,6 +312,38 @@ func (s *searcher) loadOrBuildIndex() (*embedding.Index, error) {
 	}
 
 	return combined, nil
+}
+
+// fetchIndexFromBlobStore tries to load an index from the blob store via
+// manifest. Returns entries on success, or an error if the manifest is missing,
+// stale, or the fetch fails. On success, caches entries locally for next time.
+func fetchIndexFromBlobStore(cfg ManeaterConfig, cfgHash, cacheDir string) ([]embedding.CachedEntry, error) {
+	manifest, err := LoadManifest(cacheDir)
+	if err != nil {
+		return nil, err
+	}
+	if manifest.ConfigHash != cfgHash {
+		return nil, fmt.Errorf("stale manifest (config changed)")
+	}
+
+	sc := resolveStorage(cfg)
+	store := &CommandBlobStore{ReadCmd: sc.ReadCmd, WriteCmd: sc.WriteCmd}
+
+	blob, err := store.Read(manifest.BlobDigest)
+	if err != nil {
+		return nil, fmt.Errorf("fetching blob %s: %w", manifest.BlobDigest, err)
+	}
+
+	_, entries, err := embedding.UnmarshalIndexBlob(blob)
+	if err != nil {
+		return nil, fmt.Errorf("deserializing blob: %w", err)
+	}
+
+	if cacheErr := embedding.SaveCachedEntries(cacheDir, entries); cacheErr != nil {
+		fmt.Fprintf(os.Stderr, "maneater: warning: could not cache entries locally: %v\n", cacheErr)
+	}
+
+	return entries, nil
 }
 
 type pageText struct {
