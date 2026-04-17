@@ -951,6 +951,27 @@ func runIndex() error {
 
 		fmt.Printf("Done: %s — %d entries (%d reused, %d embedded) saved to %s\n",
 			corpus.Name(), len(entries), reusedCount, embeddedCount, cacheDir)
+
+		sc := resolveStorage(cfg)
+		store := &CommandBlobStore{ReadCmd: sc.ReadCmd, WriteCmd: sc.WriteCmd}
+		blob, err := embedding.MarshalIndexBlob(meta, entries)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "maneater: warning: could not serialize index blob: %v\n", err)
+			continue
+		}
+		digest, err := store.Write(blob)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "maneater: warning: could not write to blob store: %v\n"+
+				"Run 'maneater init-store' to initialize the madder store.\n", err)
+			continue
+		}
+		if err := SaveManifest(cacheDir, IndexManifest{
+			BlobDigest: digest,
+			ConfigHash: cfgHash,
+		}); err != nil {
+			fmt.Fprintf(os.Stderr, "maneater: warning: could not save manifest: %v\n", err)
+		}
+		fmt.Fprintf(os.Stderr, "maneater: blob stored: %s\n", digest)
 	}
 
 	return nil
