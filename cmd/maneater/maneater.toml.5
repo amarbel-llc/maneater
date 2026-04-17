@@ -14,6 +14,12 @@ manpath discovery, and corpus definitions.
 Configuration files are loaded and merged in order:
 .Bl -enum
 .It
+.Ev MANEATER_CONFIG
+(base; lowest priority).
+When set, this file is loaded first.
+The Nix wrapper sets this to a bundled configuration with pre-resolved
+model paths and a default manpages corpus.
+.It
 .Pa $XDG_CONFIG_HOME/maneater/maneater.toml
 (global; defaults to
 .Pa ~/.config/maneater/maneater.toml
@@ -264,9 +270,9 @@ Default:
 Command array that writes a blob.
 Data is piped to stdin.
 The command must print a content-addressed digest to stdout.
-The digest is parsed as the first colon-containing token on the last
-non-empty line of output
-.Pq compatible with TAP format .
+The digest is extracted from TAP
+.Dq ok
+lines in the output, or from the last non-empty line as a fallback.
 Default:
 .Oo Dq madder , Dq write , Dq maneater , Dq - Oc .
 .It Va store-id
@@ -311,10 +317,11 @@ max-chars = 1000
 .Sh ENVIRONMENT
 .Bl -tag -width "MANEATER_CONFIG"
 .It Ev MANEATER_CONFIG
-When set, this single file is used instead of the hierarchical lookup
-described above.
+Path to a base configuration file loaded as the lowest-priority layer
+in the hierarchy described above.
+User and project configs overlay on top of it.
 The Nix wrapper sets this to a bundled configuration with pre-resolved
-model paths.
+model paths and a default manpages corpus.
 .It Ev XDG_CONFIG_HOME
 Base directory for the global configuration file.
 Defaults to

@@ -132,13 +132,14 @@ store ID
 .Sh ENVIRONMENT
 .Bl -tag -width "MANEATER_CONFIG"
 .It Ev MANEATER_CONFIG
-Path to the configuration file.
-When set, this single file is used instead of the hierarchical
+Path to a base configuration file loaded as the lowest-priority layer
+in the
 .Xr maneater.toml 5
-lookup.
+hierarchy.
+User and project configs overlay on top of it.
 Set automatically by the Nix wrapper to a bundled
-.Pa models.toml
-containing model paths resolved at build time.
+.Pa maneater.toml
+containing model paths and a default manpages corpus.
 .It Ev MANPATH
 Colon-separated list of directories to search for man pages.
 .Nm

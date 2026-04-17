@@ -462,6 +462,110 @@ func TestResolveStorageExplicit(t *testing.T) {
 	}
 }
 
+func TestLoadManeaterHierarchyBaseFromEnv(t *testing.T) {
+	home := t.TempDir()
+	dir := filepath.Join(home, "project")
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	// Base config provides a model.
+	baseDir := t.TempDir()
+	basePath := filepath.Join(baseDir, "maneater.toml")
+	if err := os.WriteFile(basePath, []byte(`
+default = "base-model"
+[models.base-model]
+path = "/base/model.gguf"
+`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	// Project config adds corpora (no models).
+	if err := os.WriteFile(filepath.Join(dir, "maneater.toml"), []byte(`
+[[corpora]]
+name = "docs"
+type = "files"
+paths = ["*.md"]
+`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	t.Setenv("MANEATER_CONFIG", basePath)
+
+	cfg, err := LoadManeaterHierarchy(home, dir)
+	if err != nil {
+		t.Fatalf("LoadManeaterHierarchy: %v", err)
+	}
+
+	// Model from base layer should be present.
+	if cfg.Models["base-model"].Path != "/base/model.gguf" {
+		t.Errorf("expected base model, got models = %v", cfg.Models)
+	}
+
+	// Corpora from project layer should accumulate on top.
+	if len(cfg.Corpora) != 1 || cfg.Corpora[0].Name != "docs" {
+		t.Errorf("expected project corpora, got %v", cfg.Corpora)
+	}
+}
+
+func TestActiveModelFromConfigSingleModel(t *testing.T) {
+	cfg := ManeaterConfig{
+		Models: map[string]ModelConfig{
+			"only": {Path: "/model.gguf"},
+		},
+	}
+	name, model, err := activeModelFromConfig(cfg)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if name != "only" {
+		t.Errorf("name = %q, want only", name)
+	}
+	if model.Path != "/model.gguf" {
+		t.Errorf("path = %q, want /model.gguf", model.Path)
+	}
+}
+
+func TestActiveModelFromConfigNoModels(t *testing.T) {
+	_, _, err := activeModelFromConfig(ManeaterConfig{})
+	if err == nil {
+		t.Error("expected error for empty models")
+	}
+}
+
+func TestActiveModelFromConfigDefaultKey(t *testing.T) {
+	cfg := ManeaterConfig{
+		Default: "b",
+		Models: map[string]ModelConfig{
+			"a": {Path: "/a.gguf"},
+			"b": {Path: "/b.gguf"},
+		},
+	}
+	name, model, err := activeModelFromConfig(cfg)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if name != "b" {
+		t.Errorf("name = %q, want b", name)
+	}
+	if model.Path != "/b.gguf" {
+		t.Errorf("path = %q, want /b.gguf", model.Path)
+	}
+}
+
+func TestActiveModelFromConfigMultipleNoDefault(t *testing.T) {
+	cfg := ManeaterConfig{
+		Models: map[string]ModelConfig{
+			"a": {Path: "/a.gguf"},
+			"b": {Path: "/b.gguf"},
+		},
+	}
+	_, _, err := activeModelFromConfig(cfg)
+	if err == nil {
+		t.Error("expected error for multiple models without default")
+	}
+}
+
 func TestParseManpathConfig(t *testing.T) {
 	input := []byte(`
 [manpath]
