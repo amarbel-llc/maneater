@@ -118,6 +118,19 @@ func newApp() *command.App {
 		},
 	})
 
+	app.AddCommand(&command.Command{
+		Name: "init-store",
+		Description: command.Description{
+			Short: "Initialize the blob storage backend",
+			Long: "Sets up the default madder content-addressed blob store for sharing " +
+				"indexes across machines. Creates an XDG user store with the configured " +
+				"store ID (default: 'maneater'). Safe to run multiple times.",
+		},
+		RunCLI: func(_ context.Context, _ json.RawMessage) error {
+			return runInitStore()
+		},
+	})
+
 	return app
 }
 
@@ -1023,5 +1036,37 @@ func runIndex() error {
 		fmt.Fprintf(os.Stderr, "maneater: blob stored: %s\n", digest)
 	}
 
+	return nil
+}
+
+func runInitStore() error {
+	cfg, err := LoadDefaultManeaterHierarchy()
+	if err != nil {
+		return fmt.Errorf("loading config: %w", err)
+	}
+
+	sc := resolveStorage(cfg)
+
+	listed, err := exec.Command("madder", "list").Output()
+	if err != nil {
+		return fmt.Errorf("could not list madder stores: %w\nIs madder installed and on PATH?", err)
+	}
+
+	for _, line := range strings.Split(string(listed), "\n") {
+		fields := strings.Fields(line)
+		if len(fields) > 0 && fields[0] == sc.StoreID {
+			fmt.Printf("Madder store %q already exists.\n", sc.StoreID)
+			return nil
+		}
+	}
+
+	cmd := exec.Command("madder", "init", sc.StoreID)
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	if err := cmd.Run(); err != nil {
+		return fmt.Errorf("madder init %s: %w", sc.StoreID, err)
+	}
+
+	fmt.Printf("Initialized madder store %q.\n", sc.StoreID)
 	return nil
 }
