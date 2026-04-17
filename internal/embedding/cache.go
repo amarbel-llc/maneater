@@ -2,6 +2,7 @@ package embedding
 
 import (
 	"bufio"
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -82,4 +83,76 @@ func LoadCachedEntries(dir string) ([]CachedEntry, error) {
 	}
 
 	return entries, nil
+}
+
+type blobMetaLine struct {
+	Type           string `json:"type"`
+	ModelPath      string `json:"modelPath"`
+	DocumentPrefix string `json:"documentPrefix"`
+	ConfigHash     string `json:"configHash"`
+}
+
+// MarshalIndexBlob serializes meta and entries into a single JSONL blob.
+// The first line is a meta header (type="meta"), followed by one CachedEntry
+// per line.
+func MarshalIndexBlob(meta IndexMeta, entries []CachedEntry) ([]byte, error) {
+	var buf bytes.Buffer
+	enc := json.NewEncoder(&buf)
+
+	header := blobMetaLine{
+		Type:           "meta",
+		ModelPath:      meta.ModelPath,
+		DocumentPrefix: meta.DocumentPrefix,
+		ConfigHash:     meta.ConfigHash,
+	}
+	if err := enc.Encode(header); err != nil {
+		return nil, fmt.Errorf("encoding meta header: %w", err)
+	}
+
+	for _, e := range entries {
+		if err := enc.Encode(e); err != nil {
+			return nil, fmt.Errorf("encoding entry %s: %w", e.Key, err)
+		}
+	}
+
+	return buf.Bytes(), nil
+}
+
+// UnmarshalIndexBlob deserializes a header-prefixed JSONL blob into meta and
+// entries. The first line must have type="meta".
+func UnmarshalIndexBlob(data []byte) (IndexMeta, []CachedEntry, error) {
+	scanner := bufio.NewScanner(bytes.NewReader(data))
+	scanner.Buffer(make([]byte, 1024*1024), 1024*1024)
+
+	if !scanner.Scan() {
+		return IndexMeta{}, nil, fmt.Errorf("empty blob")
+	}
+
+	var header blobMetaLine
+	if err := json.Unmarshal(scanner.Bytes(), &header); err != nil {
+		return IndexMeta{}, nil, fmt.Errorf("parsing meta header: %w", err)
+	}
+	if header.Type != "meta" {
+		return IndexMeta{}, nil, fmt.Errorf("expected meta header, got type=%q", header.Type)
+	}
+
+	meta := IndexMeta{
+		ModelPath:      header.ModelPath,
+		DocumentPrefix: header.DocumentPrefix,
+		ConfigHash:     header.ConfigHash,
+	}
+
+	var entries []CachedEntry
+	for scanner.Scan() {
+		var e CachedEntry
+		if err := json.Unmarshal(scanner.Bytes(), &e); err != nil {
+			return IndexMeta{}, nil, fmt.Errorf("parsing entry: %w", err)
+		}
+		entries = append(entries, e)
+	}
+	if err := scanner.Err(); err != nil {
+		return IndexMeta{}, nil, fmt.Errorf("reading blob: %w", err)
+	}
+
+	return meta, entries, nil
 }
