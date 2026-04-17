@@ -60,21 +60,27 @@ func (s *CommandBlobStore) Read(digest string) ([]byte, error) {
 }
 
 // parseDigestFromOutput extracts a markl-id from write command output.
-// It finds the first token containing ':' on the last non-empty line,
-// handling TAP format (e.g. "ok - blake2b256:xxx -") and plain digest output.
+// It handles TAP format where ok lines contain the digest after "ok N - ",
+// and falls back to the last non-empty line for plain digest output.
 func parseDigestFromOutput(stdout string) (string, error) {
 	lines := strings.Split(strings.TrimSpace(stdout), "\n")
 	if len(lines) == 0 {
 		return "", fmt.Errorf("empty output")
 	}
 
-	last := lines[len(lines)-1]
-	for _, token := range strings.Fields(last) {
-		if strings.Contains(token, ":") {
-			return token, nil
+	// Scan for TAP ok lines: "ok N - <digest> <path>"
+	var lastOKDigest string
+	for _, line := range lines {
+		fields := strings.Fields(line)
+		if len(fields) >= 4 && fields[0] == "ok" && fields[2] == "-" {
+			lastOKDigest = fields[3]
 		}
 	}
+	if lastOKDigest != "" {
+		return lastOKDigest, nil
+	}
 
+	last := lines[len(lines)-1]
 	fields := strings.Fields(last)
 	if len(fields) > 0 {
 		return fields[0], nil

@@ -10,7 +10,7 @@ import (
 func TestManifestRoundTrip(t *testing.T) {
 	dir := filepath.Join(t.TempDir(), "manifest")
 	m := IndexManifest{
-		BlobDigest: "blake2b256:abc123",
+		BlobDigest: "blake2b256-abc123def456",
 		ConfigHash: "def456",
 	}
 
