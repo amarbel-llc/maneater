@@ -50,15 +50,6 @@ type StorageConfig struct {
 	StoreID  string   `toml:"store-id"`
 }
 
-func globalConfigDir() string {
-	dir := os.Getenv("XDG_CONFIG_HOME")
-	if dir == "" {
-		home, _ := os.UserHomeDir()
-		dir = filepath.Join(home, ".config")
-	}
-	return filepath.Join(dir, "maneater")
-}
-
 func loadManeaterFile(path string) (ManeaterConfig, bool, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
@@ -320,36 +311,14 @@ func LoadDefaultManeaterHierarchy() (ManeaterConfig, error) {
 	return LoadManeaterHierarchy(home, cwd)
 }
 
-func configPath() string {
-	if v := os.Getenv("MANEATER_CONFIG"); v != "" {
-		return v
-	}
-	return filepath.Join(globalConfigDir(), "models.toml")
-}
-
-func loadActiveModel() (name string, model ModelConfig, err error) {
-	path := configPath()
-
-	data, err := os.ReadFile(path)
-	if err != nil {
+func activeModelFromConfig(cfg ManeaterConfig) (string, ModelConfig, error) {
+	if len(cfg.Models) == 0 {
 		return "", ModelConfig{}, fmt.Errorf(
-			"reading config %s: %w\n\nCreate a models.toml with at least one [models.<name>] entry",
-			path, err,
+			"no [models.*] entries in config hierarchy\n\nCreate a maneater.toml with at least one [models.<name>] entry",
 		)
 	}
 
-	doc, err := DecodeManeaterConfig(data)
-	if err != nil {
-		return "", ModelConfig{}, fmt.Errorf("parsing config %s: %w", path, err)
-	}
-
-	cfg := doc.Data()
-
-	if len(cfg.Models) == 0 {
-		return "", ModelConfig{}, fmt.Errorf("config %s has no [models.*] entries", path)
-	}
-
-	name = cfg.Default
+	name := cfg.Default
 	if name == "" {
 		if len(cfg.Models) == 1 {
 			for k := range cfg.Models {
@@ -357,7 +326,7 @@ func loadActiveModel() (name string, model ModelConfig, err error) {
 			}
 		} else {
 			return "", ModelConfig{}, fmt.Errorf(
-				"config %s has multiple models but no 'default' key", path,
+				"multiple models configured but no 'default' key",
 			)
 		}
 	}
@@ -365,13 +334,13 @@ func loadActiveModel() (name string, model ModelConfig, err error) {
 	model, ok := cfg.Models[name]
 	if !ok {
 		return "", ModelConfig{}, fmt.Errorf(
-			"config %s: default model %q not found in [models]", path, name,
+			"default model %q not found in [models]", name,
 		)
 	}
 
 	if model.Path == "" {
 		return "", ModelConfig{}, fmt.Errorf(
-			"config %s: model %q has no 'path'", path, name,
+			"model %q has no 'path'", name,
 		)
 	}
 

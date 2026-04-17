@@ -36,6 +36,7 @@ type searcher struct {
 	mu        sync.Mutex
 	embedder  *embedding.Embedder
 	index     *embedding.Index
+	cfg       ManeaterConfig
 	modelName string
 	modelCfg  ModelConfig
 	manpath   []string
@@ -195,7 +196,7 @@ func runSearch(args []string) error {
 		return err
 	}
 
-	s := &searcher{manpath: manpath, corpora: corpora}
+	s := &searcher{cfg: cfg, manpath: manpath, corpora: corpora}
 	result, err := s.handleSearch(query, topK)
 	if err != nil {
 		return err
@@ -239,12 +240,12 @@ func (s *searcher) ensureSearchReady() error {
 	}
 
 	if s.modelCfg.Path == "" {
-		name, cfg, err := loadActiveModel()
+		name, model, err := activeModelFromConfig(s.cfg)
 		if err != nil {
 			return err
 		}
 		s.modelName = name
-		s.modelCfg = cfg
+		s.modelCfg = model
 	}
 
 	if s.embedder == nil {
@@ -908,14 +909,14 @@ func runIndex() error {
 		}
 	}
 
-	modelName, modelCfg, err := loadActiveModel()
-	if err != nil {
-		return err
-	}
-
 	cfg, err := LoadDefaultManeaterHierarchy()
 	if err != nil {
 		return fmt.Errorf("loading config: %w", err)
+	}
+
+	modelName, modelCfg, err := activeModelFromConfig(cfg)
+	if err != nil {
+		return err
 	}
 
 	cwd, err := os.Getwd()
