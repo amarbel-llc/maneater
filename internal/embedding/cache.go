@@ -36,55 +36,6 @@ func SaveMeta(dir string, meta IndexMeta) error {
 	return os.WriteFile(filepath.Join(dir, "meta.json"), data, 0o644)
 }
 
-const entriesFile = "entries.jsonl"
-
-// SaveCachedEntries writes entries to entries.jsonl in dir.
-func SaveCachedEntries(dir string, entries []CachedEntry) error {
-	if err := os.MkdirAll(dir, 0o755); err != nil {
-		return fmt.Errorf("creating cache dir: %w", err)
-	}
-
-	f, err := os.Create(filepath.Join(dir, entriesFile))
-	if err != nil {
-		return fmt.Errorf("creating %s: %w", entriesFile, err)
-	}
-	defer f.Close()
-
-	enc := json.NewEncoder(f)
-	for _, e := range entries {
-		if err := enc.Encode(e); err != nil {
-			return fmt.Errorf("encoding entry %s: %w", e.Key, err)
-		}
-	}
-
-	return nil
-}
-
-// LoadCachedEntries reads entries.jsonl from dir into a slice.
-func LoadCachedEntries(dir string) ([]CachedEntry, error) {
-	f, err := os.Open(filepath.Join(dir, entriesFile))
-	if err != nil {
-		return nil, fmt.Errorf("opening %s: %w", entriesFile, err)
-	}
-	defer f.Close()
-
-	var entries []CachedEntry
-	scanner := bufio.NewScanner(f)
-	scanner.Buffer(make([]byte, 1024*1024), 1024*1024)
-	for scanner.Scan() {
-		var e CachedEntry
-		if err := json.Unmarshal(scanner.Bytes(), &e); err != nil {
-			return nil, fmt.Errorf("parsing entry: %w", err)
-		}
-		entries = append(entries, e)
-	}
-	if err := scanner.Err(); err != nil {
-		return nil, fmt.Errorf("reading %s: %w", entriesFile, err)
-	}
-
-	return entries, nil
-}
-
 type blobMetaLine struct {
 	Type           string `json:"type"`
 	ModelPath      string `json:"modelPath"`

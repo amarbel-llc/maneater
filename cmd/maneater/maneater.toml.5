@@ -240,8 +240,9 @@ read-cmd = ["wiki-tool", "read"]
 .Sh STORAGE
 The
 .Va storage
-table configures the blob storage backend used to persist and share
-indexes across machines.
+table configures the blob storage backend used to persist indexes.
+The blob store is the sole storage for index entries; it must be
+initialized before indexing or searching.
 See
 .Xr maneater 1
 .Sx BLOB STORAGE

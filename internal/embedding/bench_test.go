@@ -3,7 +3,6 @@ package embedding
 import (
 	"fmt"
 	"os"
-	"path/filepath"
 	"testing"
 )
 
@@ -271,42 +270,3 @@ func joinWords(words []string) string {
 	return result
 }
 
-// BenchmarkCacheSaveLoad measures the JSONL serialization round-trip for
-// a realistic index size (1000 entries with 1024-dim embeddings).
-func BenchmarkCacheSaveLoad(b *testing.B) {
-	entries := make([]CachedEntry, 1000)
-	for i := range entries {
-		emb := make([]float32, 1024)
-		for j := range emb {
-			emb[j] = float32(i*1024+j) * 0.001
-		}
-		entries[i] = CachedEntry{
-			Key:       fmt.Sprintf("page-%d(1)", i),
-			Hash:      fmt.Sprintf("%064x", i),
-			Embedding: emb,
-		}
-	}
-
-	b.Run("Save", func(b *testing.B) {
-		dir := b.TempDir()
-		b.ResetTimer()
-		for b.Loop() {
-			if err := SaveCachedEntries(filepath.Join(dir, "bench"), entries); err != nil {
-				b.Fatal(err)
-			}
-		}
-	})
-
-	b.Run("Load", func(b *testing.B) {
-		dir := filepath.Join(b.TempDir(), "bench")
-		if err := SaveCachedEntries(dir, entries); err != nil {
-			b.Fatal(err)
-		}
-		b.ResetTimer()
-		for b.Loop() {
-			if _, err := LoadCachedEntries(dir); err != nil {
-				b.Fatal(err)
-			}
-		}
-	})
-}

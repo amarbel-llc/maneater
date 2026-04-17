@@ -268,56 +268,57 @@ func (s *searcher) ensureSearchReady() error {
 }
 
 func (s *searcher) loadOrBuildIndex() (*embedding.Index, error) {
-	cfg, err := LoadDefaultManeaterHierarchy()
-	if err != nil {
-		return nil, fmt.Errorf("loading config: %w", err)
-	}
+	sc := resolveStorage(s.cfg)
+	store := &CommandBlobStore{ReadCmd: sc.ReadCmd, WriteCmd: sc.WriteCmd}
 
 	var combined *embedding.Index
 
 	for _, corpus := range s.corpora {
-		cc := corpusConfigForCorpus(corpus, cfg)
+		cc := corpusConfigForCorpus(corpus, s.cfg)
 		cfgHash := ConfigHash(s.modelCfg, cc)
-		cacheDir := indexCacheDir(corpus.Name(), cfgHash)
+		dataDir := indexDataDir(corpus.Name(), cfgHash)
 
-		cached, loadErr := embedding.LoadCachedEntries(cacheDir)
-		if loadErr == nil {
-			fmt.Fprintf(os.Stderr, "maneater: loaded %s index (%d entries) from %s\n",
-				corpus.Name(), len(cached), cacheDir)
-
-			idx := embedding.NewIndex(0)
-			for _, e := range cached {
-				idx.Add(e.Key, e.Embedding)
-			}
-			if len(cached) > 0 {
-				idx.Dim = len(cached[0].Embedding)
-			}
-
-			if combined == nil {
-				combined = idx
-			} else {
-				combined.Entries = append(combined.Entries, idx.Entries...)
-			}
-		} else if cached, fetchErr := fetchIndexFromBlobStore(cfg, cfgHash, cacheDir); fetchErr == nil {
-			fmt.Fprintf(os.Stderr, "maneater: fetched %s index (%d entries) from blob store\n",
-				corpus.Name(), len(cached))
-
-			idx := embedding.NewIndex(0)
-			for _, e := range cached {
-				idx.Add(e.Key, e.Embedding)
-			}
-			if len(cached) > 0 {
-				idx.Dim = len(cached[0].Embedding)
-			}
-
-			if combined == nil {
-				combined = idx
-			} else {
-				combined.Entries = append(combined.Entries, idx.Entries...)
-			}
-		} else {
+		manifest, err := LoadManifest(dataDir)
+		if err != nil {
 			fmt.Fprintf(os.Stderr, "maneater: no index for %s (run 'maneater index' to build)\n",
 				corpus.Name())
+			continue
+		}
+		if manifest.ConfigHash != cfgHash {
+			fmt.Fprintf(os.Stderr, "maneater: stale index for %s (run 'maneater index' to rebuild)\n",
+				corpus.Name())
+			continue
+		}
+
+		blob, err := store.Read(manifest.BlobDigest)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "maneater: could not fetch %s from blob store: %v\n",
+				corpus.Name(), err)
+			continue
+		}
+
+		_, entries, err := embedding.UnmarshalIndexBlob(blob)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "maneater: could not deserialize %s index: %v\n",
+				corpus.Name(), err)
+			continue
+		}
+
+		fmt.Fprintf(os.Stderr, "maneater: loaded %s index (%d entries) from blob store\n",
+			corpus.Name(), len(entries))
+
+		idx := embedding.NewIndex(0)
+		for _, e := range entries {
+			idx.Add(e.Key, e.Embedding)
+		}
+		if len(entries) > 0 {
+			idx.Dim = len(entries[0].Embedding)
+		}
+
+		if combined == nil {
+			combined = idx
+		} else {
+			combined.Entries = append(combined.Entries, idx.Entries...)
 		}
 	}
 
@@ -328,41 +329,6 @@ func (s *searcher) loadOrBuildIndex() (*embedding.Index, error) {
 	return combined, nil
 }
 
-// fetchIndexFromBlobStore tries to load an index from the blob store via
-// manifest. Returns entries on success, or an error if the manifest is missing,
-// stale, or the fetch fails. On success, caches entries locally for next time.
-func fetchIndexFromBlobStore(cfg ManeaterConfig, cfgHash, cacheDir string) ([]embedding.CachedEntry, error) {
-	manifest, err := LoadManifest(cacheDir)
-	if err != nil {
-		return nil, err
-	}
-	if manifest.ConfigHash != cfgHash {
-		return nil, fmt.Errorf("stale manifest (config changed)")
-	}
-
-	sc := resolveStorage(cfg)
-	store := &CommandBlobStore{ReadCmd: sc.ReadCmd, WriteCmd: sc.WriteCmd}
-
-	blob, err := store.Read(manifest.BlobDigest)
-	if err != nil {
-		return nil, fmt.Errorf("fetching blob %s: %w", manifest.BlobDigest, err)
-	}
-
-	meta, entries, err := embedding.UnmarshalIndexBlob(blob)
-	if err != nil {
-		return nil, fmt.Errorf("deserializing blob: %w", err)
-	}
-
-	if cacheErr := embedding.SaveCachedEntries(cacheDir, entries); cacheErr != nil {
-		fmt.Fprintf(os.Stderr, "maneater: warning: could not cache entries locally: %v\n", cacheErr)
-	}
-	if cacheErr := embedding.SaveMeta(cacheDir, meta); cacheErr != nil {
-		fmt.Fprintf(os.Stderr, "maneater: warning: could not cache meta locally: %v\n", cacheErr)
-	}
-
-	return entries, nil
-}
-
 type pageText struct {
 	index    int
 	page     string
@@ -371,13 +337,13 @@ type pageText struct {
 	tldr     string
 }
 
-func indexCacheDir(corpusName, configHash string) string {
+func indexDataDir(corpusName, configHash string) string {
 	var base string
-	if xdg := os.Getenv("XDG_CACHE_HOME"); xdg != "" {
+	if xdg := os.Getenv("XDG_DATA_HOME"); xdg != "" {
 		base = filepath.Join(xdg, "maneater", "index")
 	} else {
 		home, _ := os.UserHomeDir()
-		base = filepath.Join(home, ".cache", "maneater", "index")
+		base = filepath.Join(home, ".local", "share", "maneater", "index")
 	}
 	return filepath.Join(base, corpusName, configHash)
 }
@@ -942,20 +908,27 @@ func runIndex() error {
 	}
 	defer emb.Close()
 
+	sc := resolveStorage(cfg)
+	store := &CommandBlobStore{ReadCmd: sc.ReadCmd, WriteCmd: sc.WriteCmd}
+
 	for _, corpus := range corpora {
 		cc := corpusConfigForCorpus(corpus, cfg)
 		cfgHash := ConfigHash(modelCfg, cc)
-		cacheDir := indexCacheDir(corpus.Name(), cfgHash)
+		dataDir := indexDataDir(corpus.Name(), cfgHash)
 
-		// Load existing entries for incremental reuse.
+		// Load existing entries from blob store for incremental reuse.
 		existing := make(map[string]embedding.CachedEntry)
 		if !force {
-			if cached, err := embedding.LoadCachedEntries(cacheDir); err == nil {
-				for _, e := range cached {
-					existing[e.Key] = e
+			if manifest, err := LoadManifest(dataDir); err == nil && manifest.ConfigHash == cfgHash {
+				if blob, err := store.Read(manifest.BlobDigest); err == nil {
+					if _, cached, err := embedding.UnmarshalIndexBlob(blob); err == nil {
+						for _, e := range cached {
+							existing[e.Key] = e
+						}
+						fmt.Fprintf(os.Stderr, "maneater: loaded %d entries from blob store for %s\n",
+							len(existing), corpus.Name())
+					}
 				}
-				fmt.Fprintf(os.Stderr, "maneater: loaded %d cached entries for %s\n",
-					len(existing), corpus.Name())
 			}
 		}
 
@@ -1002,42 +975,32 @@ func runIndex() error {
 			}
 		}
 
-		if err := embedding.SaveCachedEntries(cacheDir, entries); err != nil {
-			return fmt.Errorf("saving index for %s: %w", corpus.Name(), err)
-		}
-
 		meta := embedding.IndexMeta{
 			ModelPath:      modelCfg.Path,
 			DocumentPrefix: modelCfg.DocumentPrefix,
 			ConfigHash:     cfgHash,
 		}
-		if err := embedding.SaveMeta(cacheDir, meta); err != nil {
-			fmt.Fprintf(os.Stderr, "maneater: warning: could not save meta.json: %v\n", err)
-		}
 
-		fmt.Printf("Done: %s — %d entries (%d reused, %d embedded) saved to %s\n",
-			corpus.Name(), len(entries), reusedCount, embeddedCount, cacheDir)
-
-		sc := resolveStorage(cfg)
-		store := &CommandBlobStore{ReadCmd: sc.ReadCmd, WriteCmd: sc.WriteCmd}
 		blob, err := embedding.MarshalIndexBlob(meta, entries)
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "maneater: warning: could not serialize index blob: %v\n", err)
-			continue
+			return fmt.Errorf("serializing index blob for %s: %w", corpus.Name(), err)
 		}
 		digest, err := store.Write(blob)
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "maneater: warning: could not write to blob store: %v\n"+
-				"Run 'maneater init-store' to initialize the madder store.\n", err)
-			continue
+			return fmt.Errorf("writing blob for %s: %w\nRun 'maneater init-store' to initialize the madder store.", corpus.Name(), err)
 		}
-		if err := SaveManifest(cacheDir, IndexManifest{
+		if err := SaveManifest(dataDir, IndexManifest{
 			BlobDigest: digest,
 			ConfigHash: cfgHash,
 		}); err != nil {
-			fmt.Fprintf(os.Stderr, "maneater: warning: could not save manifest: %v\n", err)
+			return fmt.Errorf("saving manifest for %s: %w", corpus.Name(), err)
 		}
-		fmt.Fprintf(os.Stderr, "maneater: blob stored: %s\n", digest)
+		if err := embedding.SaveMeta(dataDir, meta); err != nil {
+			fmt.Fprintf(os.Stderr, "maneater: warning: could not save meta.json: %v\n", err)
+		}
+
+		fmt.Printf("Done: %s — %d entries (%d reused, %d embedded) blob %s\n",
+			corpus.Name(), len(entries), reusedCount, embeddedCount, digest)
 	}
 
 	return nil

@@ -33,8 +33,8 @@ modified documents are embedded.
 Use
 .Fl -force
 to ignore cached entries and rebuild from scratch.
-The index is saved to the cache directory (see
-.Sx FILES )
+The index is written to the blob store (see
+.Sx BLOB STORAGE )
 and reused by subsequent
 .Cm search
 invocations.
@@ -108,17 +108,22 @@ EOF
 After building an index,
 .Nm
 writes the index as a single blob to a content-addressed store.
-On subsequent searches, if the local cache is missing but a manifest is
-present, the blob is fetched from the store and the local cache is
-repopulated.
+On subsequent searches, the blob is fetched from the store using the
+digest recorded in the manifest.
 This allows pre-built indexes to be shared across machines.
 .Pp
+The blob store is
+.Sy required ;
+indexing fails if it is not initialized.
 The default backend is
 .Xr madder 1 ,
 which must be initialized before first use:
 .Bd -literal -offset indent
 maneater init-store
 .Ed
+.Pp
+Every search fetches the index blob from the store.
+There is no local entries cache.
 .Pp
 The storage backend is configurable via the
 .Va [storage]
@@ -163,10 +168,11 @@ This behavior can be disabled or extended via the
 .Va manpath
 section in
 .Xr maneater.toml 5 .
-.It Ev XDG_CACHE_HOME
-Base directory for the search index cache.
+.It Ev XDG_DATA_HOME
+Base directory for persistent index state
+.Pq manifests and metadata .
 Defaults to
-.Pa ~/.cache .
+.Pa ~/.local/share .
 .It Ev XDG_CONFIG_HOME
 Base directory for the global configuration file.
 Defaults to
@@ -176,30 +182,24 @@ See
 for the full hierarchy.
 .El
 .Sh FILES
-.Bl -tag -width "$XDG_CACHE_HOME/maneater/index/"
-.It Pa $XDG_CACHE_HOME/maneater/index/
-Cached search indexes, organized as:
+.Bl -tag -width "$XDG_DATA_HOME/maneater/index/"
+.It Pa $XDG_DATA_HOME/maneater/index/
+Persistent index state, organized as:
 .Pp
-.D1 Pa {corpusName}/{configHash}/entries.jsonl
+.D1 Pa {corpusName}/{configHash}/manifest.json
 .D1 Pa {corpusName}/{configHash}/meta.json
 .Pp
 The
 .Pa configHash
 is derived from the model path, document prefix, and corpus parameters.
-Changing any of these creates a new cache directory.
-.Pa entries.jsonl
-contains one JSON object per document with key, content hash, and embedding.
+Changing any of these creates a new state directory.
+.Pa manifest.json
+records the content-addressed blob digest from the last successful index.
 .Pa meta.json
 records the full config snapshot for debuggability.
-Safe to delete; will be rebuilt on next
-.Cm index
-invocation.
-.It Pa {corpusName}/{configHash}/manifest.json
-Records the content-addressed blob digest and config hash from the last
-successful blob store write.
-When the local cache is missing but a manifest exists,
-.Cm search
-fetches the index blob from the configured storage backend.
+.Pp
+Index entries are stored exclusively in the blob store
+.Pq see Sx BLOB STORAGE .
 .El
 .Sh SEE ALSO
 .Xr madder 1 ,

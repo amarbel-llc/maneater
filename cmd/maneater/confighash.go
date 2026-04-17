@@ -16,4 +16,3 @@ func ConfigHash(model ModelConfig, corpus CorpusConfig) string {
 	fmt.Fprintf(h, "max-chars:%d\n", corpus.MaxChars)
 	return hex.EncodeToString(h.Sum(nil))[:12]
 }
-
