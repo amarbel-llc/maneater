@@ -21,6 +21,12 @@ gomod2nix:
 build-nix:
   nix build --show-trace
 
+[group('explore')]
+man-tree:
+  mkdir -p build/man/man1 build/man/man5
+  ln -sf ../../../cmd/maneater/maneater.1 build/man/man1/maneater.1
+  ln -sf ../../../cmd/maneater/maneater.toml.5 build/man/man5/maneater.toml.5
+
 # Format code
 fmt:
   gofumpt -w .

@@ -1,4 +1,11 @@
-# Tracer bullet: index all Go source files in this repo.
+# Prototype: manpages corpus with repo-local man tree + Go source files.
+
+[manpath]
+include = ["build/man"]
+no-auto = true
+
+[[corpora]]
+type = "manpages"
 
 [[corpora]]
 name = "maneater-src"
