@@ -67,6 +67,13 @@
           hash = "sha256-C+gyDssPtuIF8KFBnOPUaINLxE0Cy/2l/RcbNoGxJZc=";
         };
 
+        maneater-test-toml = pkgs.writeText "maneater-test.toml" ''
+          [models.snowflake]
+          path = "${snowflake-model}"
+          query-prefix = "query: "
+          document-prefix = ""
+        '';
+
         maneater-base-toml = pkgs.writeText "maneater.toml" ''
           default = "snowflake"
 
@@ -140,7 +147,9 @@
             pkgs.ripgrep
             tommy.packages.${system}.default
             madder.packages.${system}.default
+            bob.packages.${system}.batman
           ];
+          MANEATER_TEST_CONFIG = maneater-test-toml;
         };
       }
     );

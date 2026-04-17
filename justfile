@@ -27,6 +27,11 @@ man-tree:
   ln -sf ../../../cmd/maneater/maneater.1 build/man/man1/maneater.1
   ln -sf ../../../cmd/maneater/maneater.toml.5 build/man/man5/maneater.toml.5
 
+# Run bats integration tests
+[group('test')]
+test-bats: build
+  bats --no-sandbox --bin-dir build/ zz-tests_bats/
+
 # Format code
 fmt:
   gofumpt -w .

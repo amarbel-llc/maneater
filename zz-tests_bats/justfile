@@ -1,0 +1,18 @@
+bats_timeout := "120"
+
+default: test
+
+# Run all bats test files.
+[group("test")]
+test-targets *targets="*.bats":
+  BATS_TEST_TIMEOUT="{{bats_timeout}}" \
+    bats --jobs {{num_cpus()}} {{targets}}
+
+# Run bats tests filtered by tag.
+[group("test")]
+test-tags *tags:
+  BATS_TEST_TIMEOUT="{{bats_timeout}}" \
+    bats --jobs {{num_cpus()}} --filter-tags {{tags}} *.bats
+
+[group("test")]
+test: (test-targets "*.bats")
