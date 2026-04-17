@@ -197,6 +197,13 @@ func LoadManeaterHierarchy(home, dir string) (ManeaterConfig, error) {
 		return nil
 	}
 
+	// 0. Base: bundled config via MANEATER_CONFIG (lowest priority).
+	if base := os.Getenv("MANEATER_CONFIG"); base != "" {
+		if err := loadAndMerge(base); err != nil {
+			return ManeaterConfig{}, err
+		}
+	}
+
 	// 1. Global config: try maneater.toml first, fall back to models.toml.
 	globalDir := filepath.Join(home, ".config", "maneater")
 	globalPath := filepath.Join(globalDir, "maneater.toml")
