@@ -67,7 +67,7 @@
           hash = "sha256-C+gyDssPtuIF8KFBnOPUaINLxE0Cy/2l/RcbNoGxJZc=";
         };
 
-        maneater-models-toml = pkgs.writeText "models.toml" ''
+        maneater-base-toml = pkgs.writeText "maneater.toml" ''
           default = "snowflake"
 
           [models.nomic]
@@ -79,6 +79,9 @@
           path = "${snowflake-model}"
           query-prefix = "query: "
           document-prefix = ""
+
+          [[corpora]]
+          type = "manpages"
         '';
 
         maneater-unwrapped = pkgs.buildGoApplication {
@@ -111,7 +114,7 @@
                     madder.packages.${system}.default
                   ]
                 } \
-                --set MANEATER_CONFIG ${maneater-models-toml}
+                --set MANEATER_CONFIG ${maneater-base-toml}
               ${maneater-unwrapped}/bin/maneater generate-plugin $out
             '';
       in
