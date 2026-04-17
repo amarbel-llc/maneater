@@ -74,4 +74,3 @@ func TestUnmarshalBlobBadHeader(t *testing.T) {
 		t.Error("expected error for wrong header type")
 	}
 }
-

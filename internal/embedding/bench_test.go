@@ -269,4 +269,3 @@ func joinWords(words []string) string {
 	}
 	return result
 }
-

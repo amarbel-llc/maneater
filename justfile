@@ -1,5 +1,5 @@
 # Build and test
-default: build test
+default: build test test-bats
 
 # Build maneater binary
 build: generate
