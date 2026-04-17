@@ -940,12 +940,12 @@ func runIndex() error {
 			return fmt.Errorf("saving index for %s: %w", corpus.Name(), err)
 		}
 
-		meta := IndexMeta{
+		meta := embedding.IndexMeta{
 			ModelPath:      modelCfg.Path,
 			DocumentPrefix: modelCfg.DocumentPrefix,
 			ConfigHash:     cfgHash,
 		}
-		if err := SaveMeta(cacheDir, meta); err != nil {
+		if err := embedding.SaveMeta(cacheDir, meta); err != nil {
 			fmt.Fprintf(os.Stderr, "maneater: warning: could not save meta.json: %v\n", err)
 		}
 

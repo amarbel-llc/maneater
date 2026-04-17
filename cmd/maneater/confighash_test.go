@@ -5,6 +5,8 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+
+	"github.com/amarbel-llc/maneater/internal/embedding"
 )
 
 func TestConfigHash(t *testing.T) {
@@ -61,14 +63,14 @@ func TestConfigHash(t *testing.T) {
 
 func TestMetaSaveLoad(t *testing.T) {
 	dir := t.TempDir()
-	meta := IndexMeta{
+	meta := embedding.IndexMeta{
 		ModelPath:      "/nix/store/abc.gguf",
 		DocumentPrefix: "search_document: ",
 		ConfigHash:     "abc123def456",
 	}
 
-	if err := SaveMeta(dir, meta); err != nil {
-		t.Fatalf("SaveMeta: %v", err)
+	if err := embedding.SaveMeta(dir, meta); err != nil {
+		t.Fatalf("embedding.SaveMeta: %v", err)
 	}
 
 	data, err := os.ReadFile(filepath.Join(dir, "meta.json"))
@@ -76,7 +78,7 @@ func TestMetaSaveLoad(t *testing.T) {
 		t.Fatalf("reading meta.json: %v", err)
 	}
 
-	var loaded IndexMeta
+	var loaded embedding.IndexMeta
 	if err := json.Unmarshal(data, &loaded); err != nil {
 		t.Fatalf("parsing meta.json: %v", err)
 	}

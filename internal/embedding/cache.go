@@ -17,6 +17,24 @@ type CachedEntry struct {
 	Embedding []float32 `json:"embedding"`
 }
 
+// IndexMeta is the metadata sidecar written alongside entries.jsonl for
+// debuggability. It records the full config snapshot so a human can
+// understand what produced a given cache directory.
+type IndexMeta struct {
+	ModelPath      string `json:"modelPath"`
+	DocumentPrefix string `json:"documentPrefix"`
+	ConfigHash     string `json:"configHash"`
+}
+
+// SaveMeta writes meta.json to dir.
+func SaveMeta(dir string, meta IndexMeta) error {
+	data, err := json.MarshalIndent(meta, "", "  ")
+	if err != nil {
+		return fmt.Errorf("marshaling meta: %w", err)
+	}
+	return os.WriteFile(filepath.Join(dir, "meta.json"), data, 0o644)
+}
+
 const entriesFile = "entries.jsonl"
 
 // SaveCachedEntries writes entries to entries.jsonl in dir.
