@@ -19,6 +19,8 @@ type Embedder struct {
 }
 
 func NewEmbedder(modelPath string) (*Embedder, error) {
+	installLlamaLogRedirect()
+
 	cPath := C.CString(modelPath)
 	defer C.free(unsafe.Pointer(cPath))
 
