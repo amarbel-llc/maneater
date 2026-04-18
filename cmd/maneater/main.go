@@ -20,6 +20,7 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/amarbel-llc/maneater/internal/blobstore"
 	"github.com/amarbel-llc/maneater/internal/embedding"
 	"github.com/amarbel-llc/maneater/internal/manifest"
 	"github.com/amarbel-llc/purse-first/libs/go-mcp/command"
@@ -270,7 +271,7 @@ func (s *searcher) ensureSearchReady() error {
 
 func (s *searcher) loadOrBuildIndex() (*embedding.Index, error) {
 	sc := resolveStorage(s.cfg)
-	store := &CommandBlobStore{ReadCmd: sc.ReadCmd, WriteCmd: sc.WriteCmd}
+	store := &blobstore.CommandBlobStore{ReadCmd: sc.ReadCmd, WriteCmd: sc.WriteCmd}
 
 	var combined *embedding.Index
 
@@ -910,7 +911,7 @@ func runIndex() error {
 	defer emb.Close()
 
 	sc := resolveStorage(cfg)
-	store := &CommandBlobStore{ReadCmd: sc.ReadCmd, WriteCmd: sc.WriteCmd}
+	store := &blobstore.CommandBlobStore{ReadCmd: sc.ReadCmd, WriteCmd: sc.WriteCmd}
 
 	for _, corpus := range corpora {
 		cc := corpusConfigForCorpus(corpus, cfg)
