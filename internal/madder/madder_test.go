@@ -1,4 +1,4 @@
-package blobstore
+package madder
 
 import "testing"
 
@@ -47,28 +47,5 @@ func TestParseDigestEmpty(t *testing.T) {
 	_, err := parseDigestFromOutput("")
 	if err == nil {
 		t.Error("expected error for empty output")
-	}
-}
-
-func TestCommandBlobStoreRoundTrip(t *testing.T) {
-	store := &CommandBlobStore{
-		WriteCmd: []string{"sh", "-c", "cat >/dev/null; printf 'TAP version 14\\nok 1 - blake2b256-testdigest -\\n1..1\\n'"},
-		ReadCmd:  []string{"echo", "hello from blob"},
-	}
-
-	digest, err := store.Write([]byte("test data"))
-	if err != nil {
-		t.Fatalf("Write: %v", err)
-	}
-	if digest != "blake2b256-testdigest" {
-		t.Errorf("digest = %q, want blake2b256-testdigest", digest)
-	}
-
-	data, err := store.Read(digest)
-	if err != nil {
-		t.Fatalf("Read: %v", err)
-	}
-	if len(data) == 0 {
-		t.Error("Read returned empty data")
 	}
 }

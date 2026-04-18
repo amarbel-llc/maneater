@@ -115,9 +115,11 @@ This allows pre-built indexes to be shared across machines.
 The blob store is
 .Sy required ;
 indexing fails if it is not initialized.
-The default backend is
-.Xr madder 1 ,
-which must be initialized before first use:
+.Nm
+shells out to
+.Xr madder 1
+for all blob reads and writes, and the store must be initialized
+before first use:
 .Bd -literal -offset indent
 maneater init-store
 .Ed
@@ -125,15 +127,15 @@ maneater init-store
 Every search fetches the index blob from the store.
 There is no local entries cache.
 .Pp
-The storage backend is configurable via the
+The store ID is configurable via the
 .Va [storage]
 section in
 .Xr maneater.toml 5 .
 When no
 .Va [storage]
-section is present, the default madder commands are used with
-store ID
-.Dq maneater .
+section is present, store ID
+.Dq maneater
+is used.
 .Sh ENVIRONMENT
 .Bl -tag -width "MANEATER_CONFIG"
 .It Ev MANEATER_CONFIG

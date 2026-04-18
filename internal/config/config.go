@@ -48,9 +48,7 @@ type ModelConfig struct {
 }
 
 type StorageConfig struct {
-	ReadCmd  []string `toml:"read-cmd"`
-	WriteCmd []string `toml:"write-cmd"`
-	StoreID  string   `toml:"store-id"`
+	StoreID string `toml:"store-id"`
 }
 
 func loadManeaterFile(path string) (ManeaterConfig, bool, error) {
@@ -233,18 +231,13 @@ func LoadHierarchy(home, dir string) (ManeaterConfig, error) {
 	return merged, nil
 }
 
-// ResolveStorage returns the effective storage config. When no [storage]
-// section is configured, it returns madder defaults targeting the "maneater"
-// store.
+// ResolveStorage returns the effective storage config, defaulting StoreID to
+// "maneater" when no [storage] section is configured or store-id is blank.
 func ResolveStorage(cfg ManeaterConfig) StorageConfig {
-	if cfg.Storage != nil {
+	if cfg.Storage != nil && cfg.Storage.StoreID != "" {
 		return *cfg.Storage
 	}
-	return StorageConfig{
-		ReadCmd:  []string{"madder", "cat"},
-		WriteCmd: []string{"madder", "write", "maneater", "-"},
-		StoreID:  "maneater",
-	}
+	return StorageConfig{StoreID: "maneater"}
 }
 
 // expandEnvInModels expands $VAR and ${VAR} references in model path fields.

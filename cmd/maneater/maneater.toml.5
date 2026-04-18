@@ -240,8 +240,10 @@ read-cmd = ["wiki-tool", "read"]
 .Sh STORAGE
 The
 .Va storage
-table configures the blob storage backend used to persist indexes.
-The blob store is the sole storage for index entries; it must be
+table configures the
+.Xr madder 1
+store used to persist indexes.
+The store is the sole storage for index entries; it must be
 initialized before indexing or searching.
 See
 .Xr maneater 1
@@ -250,48 +252,31 @@ for an overview.
 .Pp
 When no
 .Va [storage]
-section is present, the default backend is
+section is present, maneater uses
 .Xr madder 1
 with store ID
 .Dq maneater :
 .Bd -literal -offset indent
 [storage]
-read-cmd = ["madder", "cat"]
-write-cmd = ["madder", "write", "maneater", "-"]
 store-id = "maneater"
 .Ed
-.Bl -tag -width "write-cmd"
-.It Va read-cmd
-Command array that reads a blob by digest.
-The blob digest is appended as a final argument.
-The command must write the blob contents to stdout.
-Default:
-.Oo Dq madder , Dq cat Oc .
-.It Va write-cmd
-Command array that writes a blob.
-Data is piped to stdin.
-The command must print a content-addressed digest to stdout.
-The digest is extracted from TAP
-.Dq ok
-lines in the output, or from the last non-empty line as a fallback.
-Default:
-.Oo Dq madder , Dq write , Dq maneater , Dq - Oc .
+.Bl -tag -width "store-id"
 .It Va store-id
-Identifier for the blob store.
+Identifier of the
+.Xr madder 1
+store.
 Used by
 .Cm init-store
-to create the store and by the default
-.Va write-cmd
-as a positional argument.
+to create the store and by
+.Cm index
+to write blobs.
 Default:
 .Dq maneater .
 .El
 .Pp
-To use a custom storage backend:
+To use a non-default madder store:
 .Bd -literal -offset indent
 [storage]
-read-cmd = ["my-store", "get"]
-write-cmd = ["my-store", "put"]
 store-id = "my-index-store"
 .Ed
 .Sh EXAMPLES

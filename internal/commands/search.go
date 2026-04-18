@@ -7,10 +7,10 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/amarbel-llc/maneater/internal/blobstore"
 	"github.com/amarbel-llc/maneater/internal/config"
 	"github.com/amarbel-llc/maneater/internal/corpus"
 	"github.com/amarbel-llc/maneater/internal/embedding"
+	"github.com/amarbel-llc/maneater/internal/madder"
 	"github.com/amarbel-llc/maneater/internal/manifest"
 )
 
@@ -143,7 +143,7 @@ func (s *searcher) ensureSearchReady() error {
 
 func (s *searcher) loadOrBuildIndex() (*embedding.Index, error) {
 	sc := config.ResolveStorage(s.cfg)
-	store := &blobstore.CommandBlobStore{ReadCmd: sc.ReadCmd, WriteCmd: sc.WriteCmd}
+	store := &madder.Store{StoreID: sc.StoreID}
 
 	var combined *embedding.Index
 

@@ -2,11 +2,9 @@ package commands
 
 import (
 	"fmt"
-	"os"
-	"os/exec"
-	"strings"
 
 	"github.com/amarbel-llc/maneater/internal/config"
+	"github.com/amarbel-llc/maneater/internal/madder"
 )
 
 // RunInitStore initializes the madder store whose ID is in cfg.Storage.StoreID
@@ -19,27 +17,20 @@ func RunInitStore() error {
 	}
 
 	sc := config.ResolveStorage(cfg)
+	store := &madder.Store{StoreID: sc.StoreID}
 
-	listed, err := exec.Command("madder", "list").Output()
+	exists, err := store.Exists()
 	if err != nil {
-		return fmt.Errorf("could not list madder stores: %w\nIs madder installed and on PATH?", err)
+		return err
+	}
+	if exists {
+		fmt.Printf("Madder store %q already exists.\n", store.StoreID)
+		return nil
 	}
 
-	for _, line := range strings.Split(string(listed), "\n") {
-		fields := strings.Fields(line)
-		if len(fields) > 0 && fields[0] == sc.StoreID {
-			fmt.Printf("Madder store %q already exists.\n", sc.StoreID)
-			return nil
-		}
+	if err := store.Init(); err != nil {
+		return err
 	}
-
-	cmd := exec.Command("madder", "init", sc.StoreID)
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-	if err := cmd.Run(); err != nil {
-		return fmt.Errorf("madder init %s: %w", sc.StoreID, err)
-	}
-
-	fmt.Printf("Initialized madder store %q.\n", sc.StoreID)
+	fmt.Printf("Initialized madder store %q.\n", store.StoreID)
 	return nil
 }

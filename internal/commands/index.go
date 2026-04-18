@@ -4,9 +4,9 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/amarbel-llc/maneater/internal/blobstore"
 	"github.com/amarbel-llc/maneater/internal/config"
 	"github.com/amarbel-llc/maneater/internal/embedding"
+	"github.com/amarbel-llc/maneater/internal/madder"
 	"github.com/amarbel-llc/maneater/internal/manifest"
 )
 
@@ -54,7 +54,7 @@ func RunIndex() error {
 	defer emb.Close()
 
 	sc := config.ResolveStorage(cfg)
-	store := &blobstore.CommandBlobStore{ReadCmd: sc.ReadCmd, WriteCmd: sc.WriteCmd}
+	store := &madder.Store{StoreID: sc.StoreID}
 
 	for _, c := range corpora {
 		cc := corpusConfigForCorpus(c, cfg)
