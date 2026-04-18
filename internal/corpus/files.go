@@ -1,4 +1,4 @@
-package main
+package corpus
 
 import (
 	"bytes"
@@ -9,8 +9,6 @@ import (
 	"path/filepath"
 	"sort"
 )
-
-const defaultMaxChars = 500
 
 // FilesCorpus indexes text files matching glob patterns.
 type FilesCorpus struct {

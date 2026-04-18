@@ -1,9 +1,11 @@
-package main
+package corpus_test
 
 import (
 	"os"
 	"path/filepath"
 	"testing"
+
+	"github.com/amarbel-llc/maneater/internal/corpus"
 )
 
 func TestFilesCorpusDocumentsHaveHash(t *testing.T) {
@@ -12,12 +14,12 @@ func TestFilesCorpusDocumentsHaveHash(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	corpus := &FilesCorpus{
+	c := &corpus.FilesCorpus{
 		CorpusName: "test",
 		Patterns:   []string{filepath.Join(dir, "*.txt")},
 	}
 
-	for doc, err := range corpus.Documents() {
+	for doc, err := range c.Documents() {
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
@@ -36,14 +38,14 @@ func TestFilesCorpusHashDeterministic(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	corpus := &FilesCorpus{
+	c := &corpus.FilesCorpus{
 		CorpusName: "test",
 		Patterns:   []string{filepath.Join(dir, "*.txt")},
 	}
 
 	var hashes []string
 	for i := 0; i < 2; i++ {
-		for doc, err := range corpus.Documents() {
+		for doc, err := range c.Documents() {
 			if err != nil {
 				t.Fatal(err)
 			}

@@ -16,6 +16,7 @@ import (
 
 	"github.com/amarbel-llc/maneater/internal/blobstore"
 	"github.com/amarbel-llc/maneater/internal/config"
+	"github.com/amarbel-llc/maneater/internal/corpus"
 	"github.com/amarbel-llc/maneater/internal/embedding"
 	"github.com/amarbel-llc/maneater/internal/manifest"
 	"github.com/amarbel-llc/maneater/internal/manpath"
@@ -31,7 +32,7 @@ type searcher struct {
 	modelName string
 	modelCfg  config.ModelConfig
 	manpath   []string
-	corpora   []Corpus
+	corpora   []corpus.Corpus
 }
 
 //go:embed maneater.1 maneater.toml.5
@@ -264,39 +265,39 @@ func (s *searcher) loadOrBuildIndex() (*embedding.Index, error) {
 
 	var combined *embedding.Index
 
-	for _, corpus := range s.corpora {
-		cc := corpusConfigForCorpus(corpus, s.cfg)
+	for _, c := range s.corpora {
+		cc := corpusConfigForCorpus(c, s.cfg)
 		cfgHash := config.Hash(s.modelCfg, cc)
-		dataDir := indexDataDir(corpus.Name(), cfgHash)
+		dataDir := indexDataDir(c.Name(), cfgHash)
 
 		man, err := manifest.Load(dataDir)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "maneater: no index for %s (run 'maneater index' to build)\n",
-				corpus.Name())
+				c.Name())
 			continue
 		}
 		if man.ConfigHash != cfgHash {
 			fmt.Fprintf(os.Stderr, "maneater: stale index for %s (run 'maneater index' to rebuild)\n",
-				corpus.Name())
+				c.Name())
 			continue
 		}
 
 		blob, err := store.Read(man.BlobDigest)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "maneater: could not fetch %s from blob store: %v\n",
-				corpus.Name(), err)
+				c.Name(), err)
 			continue
 		}
 
 		_, entries, err := embedding.UnmarshalIndexBlob(blob)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "maneater: could not deserialize %s index: %v\n",
-				corpus.Name(), err)
+				c.Name(), err)
 			continue
 		}
 
 		fmt.Fprintf(os.Stderr, "maneater: loaded %s index (%d entries) from blob store\n",
-			corpus.Name(), len(entries))
+			c.Name(), len(entries))
 
 		idx := embedding.NewIndex(0)
 		for _, e := range entries {
@@ -341,7 +342,7 @@ func indexDataDir(corpusName, configHash string) string {
 
 // corpusConfigForCorpus returns the CorpusConfig matching a corpus by name.
 // Returns a zero-value CorpusConfig for the implicit manpages corpus.
-func corpusConfigForCorpus(c Corpus, cfg config.ManeaterConfig) config.CorpusConfig {
+func corpusConfigForCorpus(c corpus.Corpus, cfg config.ManeaterConfig) config.CorpusConfig {
 	for _, cc := range cfg.Corpora {
 		if cc.Name == c.Name() {
 			return cc
@@ -376,11 +377,11 @@ func (c *manpagesCorpus) Prepare() error {
 	return nil
 }
 
-func (c *manpagesCorpus) Documents() iter.Seq2[Document, error] {
-	return func(yield func(Document, error) bool) {
+func (c *manpagesCorpus) Documents() iter.Seq2[corpus.Document, error] {
+	return func(yield func(corpus.Document, error) bool) {
 		pages, err := manpath.ListManPages(c.manpath)
 		if err != nil {
-			yield(Document{}, err)
+			yield(corpus.Document{}, err)
 			return
 		}
 
@@ -456,64 +457,29 @@ func (c *manpagesCorpus) Documents() iter.Seq2[Document, error] {
 			if len(chunks) == 0 {
 				continue
 			}
-			if !yield(Document{Key: pt.page, Hash: pt.hash, Texts: chunks}, nil) {
+			if !yield(corpus.Document{Key: pt.page, Hash: pt.hash, Texts: chunks}, nil) {
 				return
 			}
 		}
 	}
 }
 
-// corpusFromConfig builds a Corpus from a CorpusConfig for the "files" and
-// "command" types. (Manpages has a separate construction path.) Will move to
-// the corpus package alongside FilesCorpus/CommandCorpus in a later step.
-func corpusFromConfig(cc config.CorpusConfig) (Corpus, error) {
-	switch cc.Type {
-	case "files":
-		if cc.Name == "" {
-			return nil, fmt.Errorf("corpus of type %q requires a name", cc.Type)
-		}
-		return &FilesCorpus{
-			CorpusName: cc.Name,
-			Patterns:   cc.Paths,
-			MaxChars:   cc.MaxChars,
-		}, nil
-	case "command":
-		if cc.Name == "" {
-			return nil, fmt.Errorf("corpus of type %q requires a name", cc.Type)
-		}
-		if len(cc.ListCmd) == 0 {
-			return nil, fmt.Errorf("corpus %q: command type requires list-cmd", cc.Name)
-		}
-		if len(cc.ReadCmd) == 0 {
-			return nil, fmt.Errorf("corpus %q: command type requires read-cmd", cc.Name)
-		}
-		return &CommandCorpus{
-			CorpusName: cc.Name,
-			ListCmd:    cc.ListCmd,
-			ReadCmd:    cc.ReadCmd,
-			MaxChars:   cc.MaxChars,
-		}, nil
-	default:
-		return nil, fmt.Errorf("unknown corpus type %q", cc.Type)
-	}
-}
-
-func resolveCorpora(cfg config.ManeaterConfig, manpath []string) ([]Corpus, error) {
+func resolveCorpora(cfg config.ManeaterConfig, manpath []string) ([]corpus.Corpus, error) {
 	// If no corpora configured, use implicit manpages corpus.
 	if len(cfg.Corpora) == 0 {
-		return []Corpus{&manpagesCorpus{manpath: manpath}}, nil
+		return []corpus.Corpus{&manpagesCorpus{manpath: manpath}}, nil
 	}
 
 	// When corpora are explicitly configured, only those are used.
 	// Add type = "manpages" to include man pages.
-	var corpora []Corpus
+	var corpora []corpus.Corpus
 
 	for _, cc := range cfg.Corpora {
 		if cc.Type == "manpages" {
 			corpora = append(corpora, &manpagesCorpus{manpath: manpath})
 			continue
 		}
-		c, err := corpusFromConfig(cc)
+		c, err := corpus.FromConfig(cc)
 		if err != nil {
 			return nil, fmt.Errorf("corpus %q: %w", cc.Name, err)
 		}
@@ -567,10 +533,10 @@ func runIndex() error {
 	sc := config.ResolveStorage(cfg)
 	store := &blobstore.CommandBlobStore{ReadCmd: sc.ReadCmd, WriteCmd: sc.WriteCmd}
 
-	for _, corpus := range corpora {
-		cc := corpusConfigForCorpus(corpus, cfg)
+	for _, c := range corpora {
+		cc := corpusConfigForCorpus(c, cfg)
 		cfgHash := config.Hash(modelCfg, cc)
-		dataDir := indexDataDir(corpus.Name(), cfgHash)
+		dataDir := indexDataDir(c.Name(), cfgHash)
 
 		// Load existing entries from blob store for incremental reuse.
 		existing := make(map[string]embedding.CachedEntry)
@@ -582,20 +548,20 @@ func runIndex() error {
 							existing[e.Key] = e
 						}
 						fmt.Fprintf(os.Stderr, "maneater: loaded %d entries from blob store for %s\n",
-							len(existing), corpus.Name())
+							len(existing), c.Name())
 					}
 				}
 			}
 		}
 
-		if err := corpus.Prepare(); err != nil {
-			return fmt.Errorf("preparing corpus %s: %w", corpus.Name(), err)
+		if err := c.Prepare(); err != nil {
+			return fmt.Errorf("preparing corpus %s: %w", c.Name(), err)
 		}
 
 		var entries []embedding.CachedEntry
 		var reusedCount, embeddedCount int
 
-		for doc, docErr := range corpus.Documents() {
+		for doc, docErr := range c.Documents() {
 			if docErr != nil {
 				fmt.Fprintf(os.Stderr, "maneater: skipping document: %v\n", docErr)
 				continue
@@ -627,7 +593,7 @@ func runIndex() error {
 			total := reusedCount + embeddedCount
 			if total%100 == 0 {
 				fmt.Fprintf(os.Stderr, "maneater: [%s] processed %d documents (%d reused, %d embedded)\n",
-					corpus.Name(), total, reusedCount, embeddedCount)
+					c.Name(), total, reusedCount, embeddedCount)
 			}
 		}
 
@@ -639,24 +605,24 @@ func runIndex() error {
 
 		blob, err := embedding.MarshalIndexBlob(meta, entries)
 		if err != nil {
-			return fmt.Errorf("serializing index blob for %s: %w", corpus.Name(), err)
+			return fmt.Errorf("serializing index blob for %s: %w", c.Name(), err)
 		}
 		digest, err := store.Write(blob)
 		if err != nil {
-			return fmt.Errorf("writing blob for %s: %w\nRun 'maneater init-store' to initialize the madder store.", corpus.Name(), err)
+			return fmt.Errorf("writing blob for %s: %w\nRun 'maneater init-store' to initialize the madder store.", c.Name(), err)
 		}
 		if err := manifest.Save(dataDir, manifest.IndexManifest{
 			BlobDigest: digest,
 			ConfigHash: cfgHash,
 		}); err != nil {
-			return fmt.Errorf("saving manifest for %s: %w", corpus.Name(), err)
+			return fmt.Errorf("saving manifest for %s: %w", c.Name(), err)
 		}
 		if err := embedding.SaveMeta(dataDir, meta); err != nil {
 			fmt.Fprintf(os.Stderr, "maneater: warning: could not save meta.json: %v\n", err)
 		}
 
 		fmt.Printf("Done: %s — %d entries (%d reused, %d embedded) blob %s\n",
-			corpus.Name(), len(entries), reusedCount, embeddedCount, digest)
+			c.Name(), len(entries), reusedCount, embeddedCount, digest)
 	}
 
 	return nil

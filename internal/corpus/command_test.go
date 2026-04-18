@@ -1,14 +1,15 @@
-package main
+package corpus_test
 
 import (
 	"testing"
 
 	"github.com/amarbel-llc/maneater/internal/config"
+	"github.com/amarbel-llc/maneater/internal/corpus"
 )
 
-func collectDocuments(t *testing.T, c Corpus) ([]Document, []error) {
+func collectDocuments(t *testing.T, c corpus.Corpus) ([]corpus.Document, []error) {
 	t.Helper()
-	var docs []Document
+	var docs []corpus.Document
 	var errs []error
 	for doc, err := range c.Documents() {
 		if err != nil {
@@ -21,7 +22,7 @@ func collectDocuments(t *testing.T, c Corpus) ([]Document, []error) {
 }
 
 func TestCommandCorpusBasic(t *testing.T) {
-	c := &CommandCorpus{
+	c := &corpus.CommandCorpus{
 		CorpusName: "test",
 		ListCmd:    []string{"printf", "alpha\nbeta\ngamma\n"},
 		ReadCmd:    []string{"echo", "content for"},
@@ -40,7 +41,6 @@ func TestCommandCorpusBasic(t *testing.T) {
 		t.Fatalf("got %d documents, want 3", len(docs))
 	}
 
-	// echo appends the key as an argument, so output is "content for <key>"
 	for i, want := range []string{"alpha", "beta", "gamma"} {
 		if docs[i].Key != want {
 			t.Errorf("docs[%d].Key = %q, want %q", i, docs[i].Key, want)
@@ -53,7 +53,7 @@ func TestCommandCorpusBasic(t *testing.T) {
 }
 
 func TestCommandCorpusMaxChars(t *testing.T) {
-	c := &CommandCorpus{
+	c := &corpus.CommandCorpus{
 		CorpusName: "truncate",
 		ListCmd:    []string{"echo", "key1"},
 		ReadCmd:    []string{"echo", "abcdefghijklmnopqrstuvwxyz"},
@@ -73,11 +73,10 @@ func TestCommandCorpusMaxChars(t *testing.T) {
 }
 
 func TestCommandCorpusSkipsEmptyOutput(t *testing.T) {
-	c := &CommandCorpus{
+	c := &corpus.CommandCorpus{
 		CorpusName: "empty",
 		ListCmd:    []string{"printf", "key1\nkey2\n"},
-		// "true" outputs nothing, so key1 should be skipped; echo produces text for key2
-		ReadCmd: []string{"true"},
+		ReadCmd:    []string{"true"},
 	}
 
 	docs, errs := collectDocuments(t, c)
@@ -90,7 +89,7 @@ func TestCommandCorpusSkipsEmptyOutput(t *testing.T) {
 }
 
 func TestCommandCorpusSkipsBlankKeys(t *testing.T) {
-	c := &CommandCorpus{
+	c := &corpus.CommandCorpus{
 		CorpusName: "blanks",
 		ListCmd:    []string{"printf", "alpha\n\n\nbeta\n"},
 		ReadCmd:    []string{"echo", "text for"},
@@ -106,7 +105,7 @@ func TestCommandCorpusSkipsBlankKeys(t *testing.T) {
 }
 
 func TestCommandCorpusListCmdFailure(t *testing.T) {
-	c := &CommandCorpus{
+	c := &corpus.CommandCorpus{
 		CorpusName: "bad-list",
 		ListCmd:    []string{"false"},
 		ReadCmd:    []string{"echo"},
@@ -122,7 +121,7 @@ func TestCommandCorpusListCmdFailure(t *testing.T) {
 }
 
 func TestCommandCorpusReadCmdFailure(t *testing.T) {
-	c := &CommandCorpus{
+	c := &corpus.CommandCorpus{
 		CorpusName: "bad-read",
 		ListCmd:    []string{"printf", "key1\nkey2\n"},
 		ReadCmd:    []string{"false"},
@@ -138,11 +137,10 @@ func TestCommandCorpusReadCmdFailure(t *testing.T) {
 }
 
 func TestCommandCorpusDefaultMaxChars(t *testing.T) {
-	c := &CommandCorpus{
+	c := &corpus.CommandCorpus{
 		CorpusName: "defaults",
 		ListCmd:    []string{"echo", "k"},
 		ReadCmd:    []string{"echo", "short"},
-		// MaxChars left at 0 — should use defaultMaxChars (500)
 	}
 
 	docs, errs := collectDocuments(t, c)
@@ -152,49 +150,12 @@ func TestCommandCorpusDefaultMaxChars(t *testing.T) {
 	if len(docs) != 1 {
 		t.Fatalf("got %d documents, want 1", len(docs))
 	}
-	// "short k" is well under 500, should pass through unchanged
 	if docs[0].Texts[0] != "short k" {
 		t.Errorf("text = %q, want %q", docs[0].Texts[0], "short k")
 	}
 }
 
-func TestParseCommandCorpusConfig(t *testing.T) {
-	input := []byte(`
-[[corpora]]
-name = "stories"
-type = "command"
-list-cmd = ["nebulous", "corpus-list"]
-read-cmd = ["nebulous", "corpus-read"]
-max-chars = 2000
-`)
-	doc, err := config.DecodeManeaterConfig(input)
-	if err != nil {
-		t.Fatalf("parse error: %v", err)
-	}
-	corpora := config.DecodeCorpora(doc)
-	if len(corpora) != 1 {
-		t.Fatalf("expected 1 corpus, got %d", len(corpora))
-	}
-
-	cc := corpora[0]
-	if cc.Name != "stories" {
-		t.Errorf("name = %q, want stories", cc.Name)
-	}
-	if cc.Type != "command" {
-		t.Errorf("type = %q, want command", cc.Type)
-	}
-	if len(cc.ListCmd) != 2 || cc.ListCmd[0] != "nebulous" || cc.ListCmd[1] != "corpus-list" {
-		t.Errorf("list-cmd = %v, want [nebulous corpus-list]", cc.ListCmd)
-	}
-	if len(cc.ReadCmd) != 2 || cc.ReadCmd[0] != "nebulous" || cc.ReadCmd[1] != "corpus-read" {
-		t.Errorf("read-cmd = %v, want [nebulous corpus-read]", cc.ReadCmd)
-	}
-	if cc.MaxChars != 2000 {
-		t.Errorf("max-chars = %d, want 2000", cc.MaxChars)
-	}
-}
-
-func TestCorpusFromConfigCommand(t *testing.T) {
+func TestFromConfigCommand(t *testing.T) {
 	cc := config.CorpusConfig{
 		Name:    "test",
 		Type:    "command",
@@ -202,16 +163,16 @@ func TestCorpusFromConfigCommand(t *testing.T) {
 		ReadCmd: []string{"echo", "text"},
 	}
 
-	corpus, err := corpusFromConfig(cc)
+	c, err := corpus.FromConfig(cc)
 	if err != nil {
-		t.Fatalf("corpusFromConfig: %v", err)
+		t.Fatalf("FromConfig: %v", err)
 	}
-	if corpus.Name() != "test" {
-		t.Errorf("Name() = %q, want test", corpus.Name())
+	if c.Name() != "test" {
+		t.Errorf("Name() = %q, want test", c.Name())
 	}
 }
 
-func TestCorpusFromConfigCommandValidation(t *testing.T) {
+func TestFromConfigCommandValidation(t *testing.T) {
 	tests := []struct {
 		name string
 		cc   config.CorpusConfig
@@ -223,7 +184,7 @@ func TestCorpusFromConfigCommandValidation(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			_, err := corpusFromConfig(tt.cc)
+			_, err := corpus.FromConfig(tt.cc)
 			if err == nil {
 				t.Error("expected error, got nil")
 			}

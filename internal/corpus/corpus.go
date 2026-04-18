@@ -1,4 +1,8 @@
-package main
+// Package corpus defines the Corpus abstraction — a named source of
+// Documents to be embedded and indexed — plus the Files and Command
+// implementations. Manpages live in their own package because they carry
+// heavier system-interaction helpers.
+package corpus
 
 import "iter"
 
@@ -15,3 +19,5 @@ type Corpus interface {
 	Prepare() error
 	Documents() iter.Seq2[Document, error]
 }
+
+const defaultMaxChars = 500
