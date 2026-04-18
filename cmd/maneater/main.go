@@ -5,7 +5,6 @@ import (
 	"embed"
 	"encoding/json"
 	"fmt"
-	"iter"
 	"os"
 	"os/exec"
 	"os/signal"
@@ -19,6 +18,7 @@ import (
 	"github.com/amarbel-llc/maneater/internal/corpus"
 	"github.com/amarbel-llc/maneater/internal/embedding"
 	"github.com/amarbel-llc/maneater/internal/manifest"
+	"github.com/amarbel-llc/maneater/internal/manpages"
 	"github.com/amarbel-llc/maneater/internal/manpath"
 	"github.com/amarbel-llc/purse-first/libs/go-mcp/command"
 )
@@ -36,7 +36,7 @@ type searcher struct {
 }
 
 //go:embed maneater.1 maneater.toml.5
-var manpages embed.FS
+var embeddedManpages embed.FS
 
 func newApp() *command.App {
 	app := command.NewApp("maneater", "Man page search index and semantic search CLI")
@@ -46,8 +46,8 @@ func newApp() *command.App {
 		"them with nomic-embed-text-v1.5, and supports ranked search by natural language query."
 
 	app.ExtraManpages = []command.ManpageFile{
-		{Source: manpages, Path: "maneater.1", Section: 1, Name: "maneater.1"},
-		{Source: manpages, Path: "maneater.toml.5", Section: 5, Name: "maneater.toml.5"},
+		{Source: embeddedManpages, Path: "maneater.1", Section: 1, Name: "maneater.1"},
+		{Source: embeddedManpages, Path: "maneater.toml.5", Section: 5, Name: "maneater.toml.5"},
 	}
 
 	app.Examples = []command.Example{
@@ -321,14 +321,6 @@ func (s *searcher) loadOrBuildIndex() (*embedding.Index, error) {
 	return combined, nil
 }
 
-type pageText struct {
-	index    int
-	page     string
-	hash     string
-	synopsis string
-	tldr     string
-}
-
 func indexDataDir(corpusName, configHash string) string {
 	var base string
 	if xdg := os.Getenv("XDG_DATA_HOME"); xdg != "" {
@@ -363,111 +355,10 @@ func resolveManpathFromConfig(cfg *config.ManpathConfig, cwd string) ([]string, 
 	return manpath.Resolve(include, noAuto, cwd)
 }
 
-// manpagesCorpus wraps the existing man-page discovery and extraction
-// functions as a Corpus. This is an adapter — the extraction logic stays
-// in main.go for now and will move to corpus_man.go later.
-type manpagesCorpus struct {
-	manpath []string
-}
-
-func (c *manpagesCorpus) Name() string { return "manpages" }
-
-func (c *manpagesCorpus) Prepare() error {
-	manpath.EnsureTldrCache()
-	return nil
-}
-
-func (c *manpagesCorpus) Documents() iter.Seq2[corpus.Document, error] {
-	return func(yield func(corpus.Document, error) bool) {
-		pages, err := manpath.ListManPages(c.manpath)
-		if err != nil {
-			yield(corpus.Document{}, err)
-			return
-		}
-
-		// Extract text concurrently using the existing worker pipeline.
-		texts := make(chan pageText, 32)
-
-		go func() {
-			defer close(texts)
-
-			type indexed struct {
-				pt  pageText
-				seq int
-			}
-
-			workers := 8
-			sem := make(chan struct{}, workers)
-			results := make(chan indexed, 32)
-
-			go func() {
-				defer close(results)
-				var wg sync.WaitGroup
-				for i, page := range pages {
-					wg.Add(1)
-					sem <- struct{}{}
-					go func(seq int, page string) {
-						defer wg.Done()
-						defer func() { <-sem }()
-						name, section := manpath.ParsePageKey(page)
-						sourcePath, _ := manpath.LocateSource(c.manpath, section, name)
-						fileHash := ""
-						if sourcePath != "" {
-							fileHash = manpath.HashFile(sourcePath)
-						}
-						results <- indexed{
-							pt: pageText{
-								index:    seq,
-								page:     page,
-								hash:     fileHash,
-								synopsis: manpath.ExtractSynopsis(c.manpath, page),
-								tldr:     manpath.ExtractTldr(page),
-							},
-							seq: seq,
-						}
-					}(i, page)
-				}
-				wg.Wait()
-			}()
-
-			pending := make(map[int]pageText)
-			next := 0
-			for r := range results {
-				pending[r.seq] = r.pt
-				for {
-					pt, ok := pending[next]
-					if !ok {
-						break
-					}
-					delete(pending, next)
-					texts <- pt
-					next++
-				}
-			}
-		}()
-
-		for pt := range texts {
-			var chunks []string
-			if pt.synopsis != "" {
-				chunks = append(chunks, pt.synopsis)
-			}
-			if pt.tldr != "" {
-				chunks = append(chunks, pt.tldr)
-			}
-			if len(chunks) == 0 {
-				continue
-			}
-			if !yield(corpus.Document{Key: pt.page, Hash: pt.hash, Texts: chunks}, nil) {
-				return
-			}
-		}
-	}
-}
-
-func resolveCorpora(cfg config.ManeaterConfig, manpath []string) ([]corpus.Corpus, error) {
+func resolveCorpora(cfg config.ManeaterConfig, manPaths []string) ([]corpus.Corpus, error) {
 	// If no corpora configured, use implicit manpages corpus.
 	if len(cfg.Corpora) == 0 {
-		return []corpus.Corpus{&manpagesCorpus{manpath: manpath}}, nil
+		return []corpus.Corpus{manpages.New(manPaths)}, nil
 	}
 
 	// When corpora are explicitly configured, only those are used.
@@ -476,7 +367,7 @@ func resolveCorpora(cfg config.ManeaterConfig, manpath []string) ([]corpus.Corpu
 
 	for _, cc := range cfg.Corpora {
 		if cc.Type == "manpages" {
-			corpora = append(corpora, &manpagesCorpus{manpath: manpath})
+			corpora = append(corpora, manpages.New(manPaths))
 			continue
 		}
 		c, err := corpus.FromConfig(cc)
