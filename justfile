@@ -40,3 +40,125 @@ test-bats: build-wrapped
 fmt:
   gofumpt -w .
   goimports -w .
+
+# Run wall-clock bench against a synthetic 200-file type=command corpus.
+# Uses the wrapped binary (so madder is on PATH) and MANEATER_TEST_CONFIG
+# (from the nix devshell). Results appended to docs/bench/<date>-bench.md.
+[group('bench')]
+bench: build-wrapped
+  #!/usr/bin/env bash
+  set -euo pipefail
+
+  : "${MANEATER_TEST_CONFIG:?run inside nix devshell (direnv)}"
+  command -v strace >/dev/null || { echo "strace not on PATH" >&2; exit 1; }
+
+  BENCH_ROOT="$(mktemp -d /tmp/maneater-bench.XXXXXX)"
+  trap 'rm -rf "$BENCH_ROOT"' EXIT
+
+  GITSHA=$(git -C "{{justfile_directory()}}" rev-parse --short HEAD)
+
+  DOCS=200
+  CORPUS_DIR="$BENCH_ROOT/corpus"
+  mkdir -p "$CORPUS_DIR"
+  for i in $(seq 1 "$DOCS"); do
+    printf 'Document %d\nSynthetic payload for embedding benchmark.\nKey %d has a deterministic text body.\n' "$i" "$i" >"$CORPUS_DIR/doc-$i.txt"
+  done
+
+  HOME_DIR="$BENCH_ROOT/home"
+  mkdir -p "$HOME_DIR/.config/maneater" "$HOME_DIR/.local/share" "$HOME_DIR/.cache"
+
+  cat >"$HOME_DIR/.config/maneater/maneater.toml" <<EOF
+  [[corpora]]
+  name = "bench"
+  type = "command"
+  list-cmd = ["sh", "-c", "ls '$CORPUS_DIR' | grep '\\\\.txt\$'"]
+  read-cmd = ["sh", "-c", "cat '$CORPUS_DIR'/\"\$1\"", "--"]
+  max-chars = 500
+  EOF
+
+  MANEATER="{{justfile_directory()}}/build/result-wrapped/bin/maneater"
+  export HOME="$HOME_DIR"
+  export XDG_DATA_HOME="$HOME_DIR/.local/share"
+  export XDG_CACHE_HOME="$HOME_DIR/.cache"
+  export XDG_CONFIG_HOME="$HOME_DIR/.config"
+  export MADDER_CEILING_DIRECTORIES="$BENCH_ROOT"
+  export MANEATER_CONFIG="$MANEATER_TEST_CONFIG"
+
+  # cd inside the ceiling so dewey's walk-from-cwd doesn't hit host ~/.madder.
+  cd "$BENCH_ROOT"
+
+  "$MANEATER" init-store >/dev/null
+
+  time_run() {
+    local log; log="$(mktemp)"
+    /usr/bin/time -f '%e' -o "$log" "$@" >/dev/null 2>&1
+    cat "$log"
+    rm -f "$log"
+  }
+
+  median() {
+    sort -g | awk '{a[NR]=$1} END { n=NR; if(n%2){print a[(n+1)/2]} else {printf "%.3f\n",(a[n/2]+a[n/2+1])/2} }'
+  }
+
+  # warm-up (first run pays model-load, fs-cache costs)
+  "$MANEATER" index --force >/dev/null
+
+  echo "Running full-rebuild trials..." >&2
+  FULL_TIMES=()
+  for trial in 1 2 3; do
+    T=$(time_run "$MANEATER" index --force)
+    FULL_TIMES+=("$T")
+    echo "  trial $trial: ${T}s" >&2
+  done
+  FULL_MED=$(printf '%s\n' "${FULL_TIMES[@]}" | median)
+
+  echo "Running incremental trials..." >&2
+  INC_TIMES=()
+  for trial in 1 2 3; do
+    T=$(time_run "$MANEATER" index)
+    INC_TIMES+=("$T")
+    echo "  trial $trial: ${T}s" >&2
+  done
+  INC_MED=$(printf '%s\n' "${INC_TIMES[@]}" | median)
+
+  echo "Collecting strace summaries..." >&2
+  STRACE_FULL="$BENCH_ROOT/strace-full.log"
+  STRACE_INC="$BENCH_ROOT/strace-inc.log"
+  strace -c -f -o "$STRACE_FULL" "$MANEATER" index --force >/dev/null 2>&1 || true
+  strace -c -f -o "$STRACE_INC" "$MANEATER" index >/dev/null 2>&1 || true
+
+  TODAY=$(date +%Y-%m-%d)
+  OUT="{{justfile_directory()}}/docs/bench/$TODAY-bench.md"
+  mkdir -p "$(dirname "$OUT")"
+  {
+    echo "## Run at $(date -u +%H:%M:%SZ) on $GITSHA"
+    echo
+    echo "- Corpus: $DOCS synthetic text files, type = command"
+    echo "- list-cmd: \`sh -c 'ls \$CORPUS_DIR | grep .txt\$'\`"
+    echo "- read-cmd: \`sh -c 'cat \$CORPUS_DIR/\$1' --\`"
+    echo "- Model: snowflake (from MANEATER_TEST_CONFIG)"
+    echo "- 3 trials each, median wall-clock; warm-up run discarded"
+    echo
+    echo "| Metric | Median (s) | Trials |"
+    echo "|---|---|---|"
+    echo "| Full rebuild (\`index --force\`) | $FULL_MED | ${FULL_TIMES[*]} |"
+    echo "| Incremental (\`index\`) | $INC_MED | ${INC_TIMES[*]} |"
+    echo
+    echo "### strace -c (full rebuild, one run)"
+    echo
+    echo '```'
+    cat "$STRACE_FULL"
+    echo '```'
+    echo
+    echo "### strace -c (incremental, one run)"
+    echo
+    echo '```'
+    cat "$STRACE_INC"
+    echo '```'
+    echo
+  } >>"$OUT"
+
+  echo
+  echo "Full rebuild median: ${FULL_MED}s"
+  echo "Incremental median:  ${INC_MED}s"
+  echo "Results appended to $OUT"
