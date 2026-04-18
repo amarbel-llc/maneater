@@ -1,4 +1,4 @@
-package main
+package manifest
 
 import (
 	"encoding/json"
@@ -16,7 +16,7 @@ type IndexManifest struct {
 
 const manifestFile = "manifest.json"
 
-func SaveManifest(dir string, m IndexManifest) error {
+func Save(dir string, m IndexManifest) error {
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return fmt.Errorf("creating manifest dir: %w", err)
 	}
@@ -27,7 +27,7 @@ func SaveManifest(dir string, m IndexManifest) error {
 	return os.WriteFile(filepath.Join(dir, manifestFile), data, 0o644)
 }
 
-func LoadManifest(dir string) (IndexManifest, error) {
+func Load(dir string) (IndexManifest, error) {
 	data, err := os.ReadFile(filepath.Join(dir, manifestFile))
 	if err != nil {
 		if errors.Is(err, fs.ErrNotExist) {

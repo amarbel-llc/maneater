@@ -21,6 +21,7 @@ import (
 	"sync"
 
 	"github.com/amarbel-llc/maneater/internal/embedding"
+	"github.com/amarbel-llc/maneater/internal/manifest"
 	"github.com/amarbel-llc/purse-first/libs/go-mcp/command"
 )
 
@@ -278,19 +279,19 @@ func (s *searcher) loadOrBuildIndex() (*embedding.Index, error) {
 		cfgHash := ConfigHash(s.modelCfg, cc)
 		dataDir := indexDataDir(corpus.Name(), cfgHash)
 
-		manifest, err := LoadManifest(dataDir)
+		man, err := manifest.Load(dataDir)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "maneater: no index for %s (run 'maneater index' to build)\n",
 				corpus.Name())
 			continue
 		}
-		if manifest.ConfigHash != cfgHash {
+		if man.ConfigHash != cfgHash {
 			fmt.Fprintf(os.Stderr, "maneater: stale index for %s (run 'maneater index' to rebuild)\n",
 				corpus.Name())
 			continue
 		}
 
-		blob, err := store.Read(manifest.BlobDigest)
+		blob, err := store.Read(man.BlobDigest)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "maneater: could not fetch %s from blob store: %v\n",
 				corpus.Name(), err)
@@ -919,8 +920,8 @@ func runIndex() error {
 		// Load existing entries from blob store for incremental reuse.
 		existing := make(map[string]embedding.CachedEntry)
 		if !force {
-			if manifest, err := LoadManifest(dataDir); err == nil && manifest.ConfigHash == cfgHash {
-				if blob, err := store.Read(manifest.BlobDigest); err == nil {
+			if man, err := manifest.Load(dataDir); err == nil && man.ConfigHash == cfgHash {
+				if blob, err := store.Read(man.BlobDigest); err == nil {
 					if _, cached, err := embedding.UnmarshalIndexBlob(blob); err == nil {
 						for _, e := range cached {
 							existing[e.Key] = e
@@ -989,7 +990,7 @@ func runIndex() error {
 		if err != nil {
 			return fmt.Errorf("writing blob for %s: %w\nRun 'maneater init-store' to initialize the madder store.", corpus.Name(), err)
 		}
-		if err := SaveManifest(dataDir, IndexManifest{
+		if err := manifest.Save(dataDir, manifest.IndexManifest{
 			BlobDigest: digest,
 			ConfigHash: cfgHash,
 		}); err != nil {

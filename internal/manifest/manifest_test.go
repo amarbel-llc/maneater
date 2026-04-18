@@ -1,26 +1,28 @@
-package main
+package manifest_test
 
 import (
 	"errors"
 	"io/fs"
 	"path/filepath"
 	"testing"
+
+	"github.com/amarbel-llc/maneater/internal/manifest"
 )
 
 func TestManifestRoundTrip(t *testing.T) {
 	dir := filepath.Join(t.TempDir(), "manifest")
-	m := IndexManifest{
+	m := manifest.IndexManifest{
 		BlobDigest: "blake2b256-abc123def456",
 		ConfigHash: "def456",
 	}
 
-	if err := SaveManifest(dir, m); err != nil {
-		t.Fatalf("SaveManifest: %v", err)
+	if err := manifest.Save(dir, m); err != nil {
+		t.Fatalf("manifest.Save: %v", err)
 	}
 
-	loaded, err := LoadManifest(dir)
+	loaded, err := manifest.Load(dir)
 	if err != nil {
-		t.Fatalf("LoadManifest: %v", err)
+		t.Fatalf("manifest.Load: %v", err)
 	}
 	if loaded.BlobDigest != m.BlobDigest {
 		t.Errorf("BlobDigest = %q, want %q", loaded.BlobDigest, m.BlobDigest)
@@ -31,7 +33,7 @@ func TestManifestRoundTrip(t *testing.T) {
 }
 
 func TestManifestLoadMissing(t *testing.T) {
-	_, err := LoadManifest(filepath.Join(t.TempDir(), "nonexistent"))
+	_, err := manifest.Load(filepath.Join(t.TempDir(), "nonexistent"))
 	if err == nil {
 		t.Error("expected error for missing manifest")
 	}
