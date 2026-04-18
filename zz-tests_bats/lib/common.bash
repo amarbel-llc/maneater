@@ -27,8 +27,11 @@ bats_load_library bats-emo
 bats_load_library bats-island
 
 setup_test_home
+# Stop madder from walking above $BATS_TEST_TMPDIR when it probes for a
+# workspace config. Undocumented but present upstream as
+# `<UTILITY>_CEILING_DIRECTORIES` (lib/echo/xdg/main.go).
+export MADDER_CEILING_DIRECTORIES="$BATS_TEST_TMPDIR"
 require_bin MANEATER_BIN maneater
-require_bin MADDER_BIN madder
 
 run_maneater() {
   local bin="${MANEATER_BIN:-maneater}"
@@ -38,11 +41,6 @@ run_maneater() {
 init_maneater_store() {
   run_maneater init-store
   assert_success
-}
-
-run_madder() {
-  local bin="${MADDER_BIN:-madder}"
-  run timeout --preserve-status 2s "$bin" "$@"
 }
 
 write_test_config() {

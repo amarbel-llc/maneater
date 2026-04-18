@@ -121,7 +121,7 @@
                     madder.packages.${system}.default
                   ]
                 } \
-                --set MANEATER_CONFIG ${maneater-base-toml}
+                --set-default MANEATER_CONFIG ${maneater-base-toml}
               ${maneater-unwrapped}/bin/maneater generate-plugin $out
             '';
       in

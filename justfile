@@ -21,16 +21,20 @@ gomod2nix:
 build-nix:
   nix build --show-trace
 
+# Build the wrapped maneater (madder + mandoc + pandoc + tldr on its PATH)
+build-wrapped:
+  nix build --out-link build/result-wrapped .#default
+
 [group('explore')]
 man-tree:
   mkdir -p build/man/man1 build/man/man5
   ln -sf ../../../cmd/maneater/maneater.1 build/man/man1/maneater.1
   ln -sf ../../../cmd/maneater/maneater.toml.5 build/man/man5/maneater.toml.5
 
-# Run bats integration tests
+# Run bats integration tests (against the wrapped binary so madder is on its PATH)
 [group('test')]
-test-bats: build
-  bats --no-sandbox --bin-dir build/ zz-tests_bats/
+test-bats: build-wrapped
+  MANEATER_BIN={{justfile_directory()}}/build/result-wrapped/bin/maneater bats --no-sandbox zz-tests_bats/
 
 # Format code
 fmt:
