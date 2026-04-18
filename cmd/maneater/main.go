@@ -1,21 +1,15 @@
 package main
 
 import (
-	"bytes"
-	"compress/gzip"
 	"context"
-	"crypto/sha256"
 	"embed"
-	"encoding/hex"
 	"encoding/json"
 	"fmt"
-	"io"
 	"iter"
 	"os"
 	"os/exec"
 	"os/signal"
 	"path/filepath"
-	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -23,15 +17,9 @@ import (
 	"github.com/amarbel-llc/maneater/internal/blobstore"
 	"github.com/amarbel-llc/maneater/internal/embedding"
 	"github.com/amarbel-llc/maneater/internal/manifest"
+	"github.com/amarbel-llc/maneater/internal/manpath"
 	"github.com/amarbel-llc/purse-first/libs/go-mcp/command"
 )
-
-type pageSection struct {
-	Name      string
-	Level     int // 1 = top-level (#), 2 = subsection (##)
-	Content   string
-	LineCount int
-}
 
 // searcher holds state for the embedding-based search pipeline.
 type searcher struct {
@@ -188,17 +176,17 @@ func runSearch(args []string) error {
 		return err
 	}
 
-	manpath, err := resolveManpath(cfg.Manpath, cwd)
+	manPaths, err := resolveManpathFromConfig(cfg.Manpath, cwd)
 	if err != nil {
 		return err
 	}
 
-	corpora, err := resolveCorpora(cfg, manpath)
+	corpora, err := resolveCorpora(cfg, manPaths)
 	if err != nil {
 		return err
 	}
 
-	s := &searcher{cfg: cfg, manpath: manpath, corpora: corpora}
+	s := &searcher{cfg: cfg, manpath: manPaths, corpora: corpora}
 	result, err := s.handleSearch(query, topK)
 	if err != nil {
 		return err
@@ -361,386 +349,16 @@ func corpusConfigForCorpus(c Corpus, cfg ManeaterConfig) CorpusConfig {
 	return CorpusConfig{}
 }
 
-// indexedSections are the man sections scanned for the search index.
-var indexedSections = []string{"1", "2", "3", "4", "5", "6", "7", "8"}
-
-func listManPages(manpath []string) ([]string, error) {
-	seen := make(map[string]bool)
-	var pages []string
-
-	for _, dir := range manpath {
-		for _, sec := range indexedSections {
-			manDir := filepath.Join(dir, "man"+sec)
-			entries, err := os.ReadDir(manDir)
-			if err != nil {
-				continue
-			}
-			for _, e := range entries {
-				if e.IsDir() {
-					continue
-				}
-				name := e.Name()
-				name = strings.TrimSuffix(name, ".gz")
-				if ext := filepath.Ext(name); ext == "."+sec {
-					name = strings.TrimSuffix(name, ext)
-				} else {
-					continue
-				}
-				key := name + "(" + sec + ")"
-				if name != "" && !seen[key] {
-					seen[key] = true
-					pages = append(pages, key)
-				}
-			}
-		}
+// resolveManpathFromConfig unwraps the optional ManpathConfig into the flat
+// arguments manpath.Resolve expects.
+func resolveManpathFromConfig(cfg *ManpathConfig, cwd string) ([]string, error) {
+	var include []string
+	var noAuto bool
+	if cfg != nil {
+		include = cfg.Include
+		noAuto = cfg.NoAuto
 	}
-
-	sort.Strings(pages)
-	return pages, nil
-}
-
-// parsePageKey splits "page(section)" into page and section.
-// Returns page and empty section if no parens found.
-func parsePageKey(key string) (string, string) {
-	if i := strings.LastIndex(key, "("); i >= 0 && strings.HasSuffix(key, ")") {
-		return key[:i], key[i+1 : len(key)-1]
-	}
-	return key, ""
-}
-
-// heuristicManDirs are common in-repo locations for man pages, probed in order.
-var heuristicManDirs = []string{"man", "doc/man", "share/man"}
-
-func resolveManpath(mpCfg *ManpathConfig, cwd string) ([]string, error) {
-	// System manpath via manpath(1).
-	systemPaths, err := systemManpath()
-	if err != nil {
-		return nil, err
-	}
-
-	var prepend []string
-
-	// Heuristic: probe common in-repo locations in cwd.
-	if mpCfg == nil || !mpCfg.NoAuto {
-		for _, rel := range heuristicManDirs {
-			candidate := filepath.Join(cwd, rel)
-			if info, err := os.Stat(candidate); err == nil && info.IsDir() {
-				prepend = append(prepend, candidate)
-			}
-		}
-	}
-
-	// Config include paths.
-	if mpCfg != nil {
-		for _, inc := range mpCfg.Include {
-			inc = os.ExpandEnv(inc)
-			if !filepath.IsAbs(inc) {
-				inc = filepath.Join(cwd, inc)
-			}
-			prepend = append(prepend, inc)
-		}
-	}
-
-	return append(prepend, systemPaths...), nil
-}
-
-func systemManpath() ([]string, error) {
-	// manpath(1) resolves MANPATH, /etc/man.conf, and platform defaults
-	cmd := exec.Command("manpath")
-	out, err := cmd.Output()
-	if err != nil {
-		// Fallback: common default
-		return []string{"/usr/share/man", "/usr/local/share/man"}, nil
-	}
-	raw := strings.TrimSpace(string(out))
-	if raw == "" {
-		return nil, fmt.Errorf("manpath returned empty")
-	}
-	return strings.Split(raw, ":"), nil
-}
-
-// extractSynopsis extracts NAME+SYNOPSIS+DESCRIPTION content from a man page,
-// truncated to 500 chars. Returns empty string on failure.
-func extractSynopsis(manpath []string, page string) string {
-	name, section := parsePageKey(page)
-	sourcePath, err := locateSource(manpath, section, name)
-	if err != nil {
-		return ""
-	}
-
-	markdown, err := renderMarkdown(sourcePath)
-	if err != nil {
-		return ""
-	}
-
-	sections := splitSections(markdown)
-
-	var synopsis strings.Builder
-	for _, s := range sections {
-		upper := strings.ToUpper(strings.TrimSpace(s.Name))
-		if upper == "NAME" || upper == "SYNOPSIS" || upper == "DESCRIPTION" {
-			synopsis.WriteString(s.Content)
-			synopsis.WriteString("\n")
-		}
-	}
-
-	text := synopsis.String()
-	if len(text) > 500 {
-		text = text[:500]
-	}
-
-	return strings.TrimSpace(text)
-}
-
-// extractTldr reads the raw tldr markdown for a page and extracts the
-// description and example descriptions, truncated to 500 chars.
-// Returns empty string if no tldr page exists.
-func extractTldr(page string) string {
-	name, _ := parsePageKey(page)
-
-	home, err := os.UserHomeDir()
-	if err != nil {
-		return ""
-	}
-
-	cacheBase := filepath.Join(home, ".cache", "tldr", "pages")
-	var content []byte
-	// Prefer osx-specific pages, fall back to common
-	for _, platform := range []string{"osx", "common"} {
-		path := filepath.Join(cacheBase, platform, name+".md")
-		data, err := os.ReadFile(path)
-		if err == nil {
-			content = data
-			break
-		}
-	}
-	if content == nil {
-		return ""
-	}
-
-	var b strings.Builder
-	for _, line := range strings.Split(string(content), "\n") {
-		line = strings.TrimSpace(line)
-		if strings.HasPrefix(line, "# ") {
-			// Page name header
-			b.WriteString(line[2:])
-			b.WriteString(" - ")
-		} else if strings.HasPrefix(line, "> ") {
-			text := line[2:]
-			// Skip "More information:" and "See also:" lines
-			if strings.HasPrefix(text, "More information:") {
-				continue
-			}
-			b.WriteString(text)
-			b.WriteString(" ")
-		} else if strings.HasPrefix(line, "- ") {
-			// Example description
-			b.WriteString(line[2:])
-			b.WriteString(" ")
-		}
-		// Skip code blocks (lines starting with `) and blank lines
-	}
-
-	text := strings.TrimSpace(b.String())
-	if len(text) > 500 {
-		text = text[:500]
-	}
-	return text
-}
-
-// ensureTldrCache runs tldr -u if the cache directory doesn't exist.
-func ensureTldrCache() {
-	home, err := os.UserHomeDir()
-	if err != nil {
-		return
-	}
-	cacheDir := filepath.Join(home, ".cache", "tldr", "pages")
-	if _, err := os.Stat(cacheDir); err == nil {
-		return
-	}
-	fmt.Fprintf(os.Stderr, "maneater: updating tldr cache...\n")
-	cmd := exec.Command("tldr", "-u")
-	cmd.Stderr = os.Stderr
-	cmd.Run()
-}
-
-// locateSource finds the roff source file by scanning manpath directories.
-// This avoids a dependency on man-db's "man -w" — only mandoc is needed.
-func locateSource(manpath []string, section, page string) (string, error) {
-	// If section is specified, only search that section dir; otherwise search
-	// common sections in priority order.
-	sections := []string{"1", "8", "5", "7", "6", "2", "3", "4"}
-	if section != "" {
-		sections = []string{section}
-	}
-
-	for _, dir := range manpath {
-		for _, sec := range sections {
-			manDir := filepath.Join(dir, "man"+sec)
-			for _, ext := range []string{".gz", ""} {
-				candidate := filepath.Join(manDir, page+"."+sec+ext)
-				if _, err := os.Stat(candidate); err == nil {
-					return candidate, nil
-				}
-			}
-		}
-	}
-
-	return "", fmt.Errorf("no manual entry for %s", page)
-}
-
-// hashFile returns the hex SHA256 of a file's contents, or empty string on error.
-func hashFile(path string) string {
-	data, err := os.ReadFile(path)
-	if err != nil {
-		return ""
-	}
-	h := sha256.Sum256(data)
-	return hex.EncodeToString(h[:])
-}
-
-// renderMarkdown converts a roff source file to markdown via mandoc and pandoc.
-// Pipeline: mandoc -T man <path> | pandoc -f man -t markdown
-//
-// If the mandoc pipeline fails (e.g. asciidoctor-generated roff that mandoc
-// transforms into something pandoc can't parse), falls back to feeding the raw
-// roff directly to pandoc.
-func renderMarkdown(sourcePath string) (string, error) {
-	result, err := renderMarkdownViaMandoc(sourcePath)
-	if err == nil {
-		return result, nil
-	}
-
-	return renderMarkdownDirect(sourcePath)
-}
-
-func renderMarkdownViaMandoc(sourcePath string) (string, error) {
-	mandoc := exec.Command("mandoc", "-T", "man", sourcePath)
-	pandoc := exec.Command("pandoc", "-f", "man", "-t", "markdown")
-
-	var mandocErr bytes.Buffer
-	mandoc.Stderr = &mandocErr
-
-	pipe, err := mandoc.StdoutPipe()
-	if err != nil {
-		return "", fmt.Errorf("creating pipe: %w", err)
-	}
-	pandoc.Stdin = pipe
-
-	var pandocOut, pandocErr bytes.Buffer
-	pandoc.Stdout = &pandocOut
-	pandoc.Stderr = &pandocErr
-
-	if err := mandoc.Start(); err != nil {
-		return "", fmt.Errorf("starting mandoc: %w", err)
-	}
-	if err := pandoc.Start(); err != nil {
-		mandoc.Process.Kill()
-		return "", fmt.Errorf("starting pandoc: %w", err)
-	}
-
-	mandoc.Wait()
-
-	if err := pandoc.Wait(); err != nil {
-		return "", fmt.Errorf("pandoc: %w: %s", err, pandocErr.String())
-	}
-
-	return pandocOut.String(), nil
-}
-
-// renderMarkdownDirect feeds roff source directly to pandoc, decompressing
-// gzipped files first.
-func renderMarkdownDirect(sourcePath string) (string, error) {
-	var reader io.Reader
-
-	f, err := os.Open(sourcePath)
-	if err != nil {
-		return "", fmt.Errorf("opening source: %w", err)
-	}
-	defer f.Close()
-
-	if strings.HasSuffix(sourcePath, ".gz") {
-		gz, err := gzip.NewReader(f)
-		if err != nil {
-			return "", fmt.Errorf("decompressing source: %w", err)
-		}
-		defer gz.Close()
-		reader = gz
-	} else {
-		reader = f
-	}
-
-	pandoc := exec.Command("pandoc", "-f", "man", "-t", "markdown")
-	pandoc.Stdin = reader
-
-	var pandocOut, pandocErr bytes.Buffer
-	pandoc.Stdout = &pandocOut
-	pandoc.Stderr = &pandocErr
-
-	if err := pandoc.Run(); err != nil {
-		return "", fmt.Errorf("pandoc: %w: %s", err, pandocErr.String())
-	}
-
-	return pandocOut.String(), nil
-}
-
-// splitSections splits markdown content by # and ## headers into sections.
-func splitSections(markdown string) []pageSection {
-	lines := strings.Split(markdown, "\n")
-	var sections []pageSection
-
-	for i := 0; i < len(lines); i++ {
-		line := lines[i]
-		var name string
-		var level int
-
-		if strings.HasPrefix(line, "## ") {
-			name = strings.TrimPrefix(line, "## ")
-			level = 2
-		} else if strings.HasPrefix(line, "# ") {
-			name = strings.TrimPrefix(line, "# ")
-			level = 1
-		} else {
-			if len(sections) > 0 {
-				sections[len(sections)-1].Content += line + "\n"
-				sections[len(sections)-1].LineCount++
-			}
-			continue
-		}
-
-		sections = append(sections, pageSection{
-			Name:  name,
-			Level: level,
-		})
-	}
-
-	// Trim trailing whitespace from each section's content
-	for i := range sections {
-		sections[i].Content = strings.TrimRight(sections[i].Content, "\n ")
-	}
-
-	return sections
-}
-
-// formatTOC produces a table of contents listing all sections with line counts.
-func formatTOC(page, manSection string, sections []pageSection) string {
-	var b strings.Builder
-
-	if manSection != "" {
-		fmt.Fprintf(&b, "%s(%s)\n\n", strings.ToUpper(page), manSection)
-	} else {
-		fmt.Fprintf(&b, "%s\n\n", strings.ToUpper(page))
-	}
-
-	for _, s := range sections {
-		indent := ""
-		if s.Level == 2 {
-			indent = "  "
-		}
-		fmt.Fprintf(&b, "%s%s (%d lines)\n", indent, s.Name, s.LineCount)
-	}
-
-	return b.String()
+	return manpath.Resolve(include, noAuto, cwd)
 }
 
 // manpagesCorpus wraps the existing man-page discovery and extraction
@@ -753,13 +371,13 @@ type manpagesCorpus struct {
 func (c *manpagesCorpus) Name() string { return "manpages" }
 
 func (c *manpagesCorpus) Prepare() error {
-	ensureTldrCache()
+	manpath.EnsureTldrCache()
 	return nil
 }
 
 func (c *manpagesCorpus) Documents() iter.Seq2[Document, error] {
 	return func(yield func(Document, error) bool) {
-		pages, err := listManPages(c.manpath)
+		pages, err := manpath.ListManPages(c.manpath)
 		if err != nil {
 			yield(Document{}, err)
 			return
@@ -789,19 +407,19 @@ func (c *manpagesCorpus) Documents() iter.Seq2[Document, error] {
 					go func(seq int, page string) {
 						defer wg.Done()
 						defer func() { <-sem }()
-						name, section := parsePageKey(page)
-						sourcePath, _ := locateSource(c.manpath, section, name)
+						name, section := manpath.ParsePageKey(page)
+						sourcePath, _ := manpath.LocateSource(c.manpath, section, name)
 						fileHash := ""
 						if sourcePath != "" {
-							fileHash = hashFile(sourcePath)
+							fileHash = manpath.HashFile(sourcePath)
 						}
 						results <- indexed{
 							pt: pageText{
 								index:    seq,
 								page:     page,
 								hash:     fileHash,
-								synopsis: extractSynopsis(c.manpath, page),
-								tldr:     extractTldr(page),
+								synopsis: manpath.ExtractSynopsis(c.manpath, page),
+								tldr:     manpath.ExtractTldr(page),
 							},
 							seq: seq,
 						}
@@ -892,12 +510,12 @@ func runIndex() error {
 		return err
 	}
 
-	manpath, err := resolveManpath(cfg.Manpath, cwd)
+	manPaths, err := resolveManpathFromConfig(cfg.Manpath, cwd)
 	if err != nil {
 		return err
 	}
 
-	corpora, err := resolveCorpora(cfg, manpath)
+	corpora, err := resolveCorpora(cfg, manPaths)
 	if err != nil {
 		return err
 	}

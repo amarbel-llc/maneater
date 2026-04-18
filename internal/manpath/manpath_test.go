@@ -1,12 +1,14 @@
-package main
+package manpath_test
 
 import (
 	"os"
 	"path/filepath"
 	"testing"
+
+	"github.com/amarbel-llc/maneater/internal/manpath"
 )
 
-func TestResolveManpathHeuristicProbesExistingDirs(t *testing.T) {
+func TestResolveHeuristicProbesExistingDirs(t *testing.T) {
 	cwd := t.TempDir()
 
 	// Create only man/ and share/man/ — not doc/man/.
@@ -16,7 +18,7 @@ func TestResolveManpathHeuristicProbesExistingDirs(t *testing.T) {
 		}
 	}
 
-	paths, err := resolveManpath(nil, cwd)
+	paths, err := manpath.Resolve(nil, false, cwd)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -41,15 +43,14 @@ func TestResolveManpathHeuristicProbesExistingDirs(t *testing.T) {
 	}
 }
 
-func TestResolveManpathNoAutoDisablesHeuristics(t *testing.T) {
+func TestResolveNoAutoDisablesHeuristics(t *testing.T) {
 	cwd := t.TempDir()
 
 	if err := os.MkdirAll(filepath.Join(cwd, "man"), 0o755); err != nil {
 		t.Fatal(err)
 	}
 
-	cfg := &ManpathConfig{NoAuto: true}
-	paths, err := resolveManpath(cfg, cwd)
+	paths, err := manpath.Resolve(nil, true, cwd)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -62,15 +63,10 @@ func TestResolveManpathNoAutoDisablesHeuristics(t *testing.T) {
 	}
 }
 
-func TestResolveManpathIncludePathsPrepended(t *testing.T) {
+func TestResolveIncludePathsPrepended(t *testing.T) {
 	cwd := t.TempDir()
 
-	cfg := &ManpathConfig{
-		Include: []string{"/custom/man"},
-		NoAuto:  true, // disable heuristics to simplify assertion
-	}
-
-	paths, err := resolveManpath(cfg, cwd)
+	paths, err := manpath.Resolve([]string{"/custom/man"}, true, cwd)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -83,15 +79,10 @@ func TestResolveManpathIncludePathsPrepended(t *testing.T) {
 	}
 }
 
-func TestResolveManpathRelativeIncludeResolvedFromCwd(t *testing.T) {
+func TestResolveRelativeIncludeResolvedFromCwd(t *testing.T) {
 	cwd := t.TempDir()
 
-	cfg := &ManpathConfig{
-		Include: []string{"vendor/man"},
-		NoAuto:  true,
-	}
-
-	paths, err := resolveManpath(cfg, cwd)
+	paths, err := manpath.Resolve([]string{"vendor/man"}, true, cwd)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -102,7 +93,7 @@ func TestResolveManpathRelativeIncludeResolvedFromCwd(t *testing.T) {
 	}
 }
 
-func TestResolveManpathHeuristicsBeforeIncludeBeforeSystem(t *testing.T) {
+func TestResolveHeuristicsBeforeIncludeBeforeSystem(t *testing.T) {
 	cwd := t.TempDir()
 
 	// Create man/ so heuristic fires.
@@ -110,11 +101,7 @@ func TestResolveManpathHeuristicsBeforeIncludeBeforeSystem(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	cfg := &ManpathConfig{
-		Include: []string{"/custom/man"},
-	}
-
-	paths, err := resolveManpath(cfg, cwd)
+	paths, err := manpath.Resolve([]string{"/custom/man"}, false, cwd)
 	if err != nil {
 		t.Fatal(err)
 	}
