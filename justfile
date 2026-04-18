@@ -11,7 +11,7 @@ test: fmt
 
 # Run go generate (regenerate config_tommy.go)
 generate:
-  go generate ./cmd/maneater/
+  go generate ./...
 
 # Regenerate gomod2nix.toml
 gomod2nix:

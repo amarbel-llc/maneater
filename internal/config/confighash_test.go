@@ -1,4 +1,4 @@
-package main
+package config_test
 
 import (
 	"encoding/json"
@@ -6,55 +6,51 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/amarbel-llc/maneater/internal/config"
 	"github.com/amarbel-llc/maneater/internal/embedding"
 )
 
 func TestConfigHash(t *testing.T) {
-	h1 := ConfigHash(ModelConfig{
+	h1 := config.Hash(config.ModelConfig{
 		Path:           "/nix/store/abc-model.gguf",
 		DocumentPrefix: "search_document: ",
-	}, CorpusConfig{MaxChars: 500})
+	}, config.CorpusConfig{MaxChars: 500})
 
-	// Same inputs produce same hash.
-	h2 := ConfigHash(ModelConfig{
+	h2 := config.Hash(config.ModelConfig{
 		Path:           "/nix/store/abc-model.gguf",
 		DocumentPrefix: "search_document: ",
-	}, CorpusConfig{MaxChars: 500})
+	}, config.CorpusConfig{MaxChars: 500})
 
 	if h1 != h2 {
 		t.Errorf("same inputs produced different hashes: %s vs %s", h1, h2)
 	}
 
-	// 12 hex chars.
 	if len(h1) != 12 {
 		t.Errorf("hash length: got %d, want 12", len(h1))
 	}
 
-	// Different model path produces different hash.
-	h3 := ConfigHash(ModelConfig{
+	h3 := config.Hash(config.ModelConfig{
 		Path:           "/nix/store/def-model.gguf",
 		DocumentPrefix: "search_document: ",
-	}, CorpusConfig{MaxChars: 500})
+	}, config.CorpusConfig{MaxChars: 500})
 
 	if h1 == h3 {
 		t.Error("different model paths produced same hash")
 	}
 
-	// Different DocumentPrefix produces different hash.
-	h4 := ConfigHash(ModelConfig{
+	h4 := config.Hash(config.ModelConfig{
 		Path:           "/nix/store/abc-model.gguf",
 		DocumentPrefix: "query: ",
-	}, CorpusConfig{MaxChars: 500})
+	}, config.CorpusConfig{MaxChars: 500})
 
 	if h1 == h4 {
 		t.Error("different DocumentPrefix produced same hash")
 	}
 
-	// Different max-chars produces different hash.
-	h5 := ConfigHash(ModelConfig{
+	h5 := config.Hash(config.ModelConfig{
 		Path:           "/nix/store/abc-model.gguf",
 		DocumentPrefix: "search_document: ",
-	}, CorpusConfig{MaxChars: 1000})
+	}, config.CorpusConfig{MaxChars: 1000})
 
 	if h1 == h5 {
 		t.Error("different MaxChars produced same hash")

@@ -1,4 +1,4 @@
-package main
+package config
 
 import (
 	"os"
@@ -22,7 +22,7 @@ func TestMergeConfigModelsOverlayWins(t *testing.T) {
 		},
 	}
 
-	merged := MergeConfig(base, overlay)
+	merged := Merge(base, overlay)
 	if merged.Default != "c" {
 		t.Errorf("Default = %q, want %q", merged.Default, "c")
 	}
@@ -37,10 +37,9 @@ func TestMergeConfigModelsOverlayWins(t *testing.T) {
 	}
 }
 
-func TestLoadManeaterHierarchyFallsBackToModelsToml(t *testing.T) {
+func TestLoadHierarchyFallsBackToModelsToml(t *testing.T) {
 	tmpHome := t.TempDir()
 
-	// Only models.toml exists (no maneater.toml).
 	globalDir := filepath.Join(tmpHome, ".config", "maneater")
 	if err := os.MkdirAll(globalDir, 0o755); err != nil {
 		t.Fatal(err)
@@ -59,9 +58,9 @@ path = "/tmp/model.gguf"
 		t.Fatal(err)
 	}
 
-	cfg, err := LoadManeaterHierarchy(tmpHome, projectDir)
+	cfg, err := LoadHierarchy(tmpHome, projectDir)
 	if err != nil {
-		t.Fatalf("LoadManeaterHierarchy: %v", err)
+		t.Fatalf("LoadHierarchy: %v", err)
 	}
 
 	if cfg.Default != "test" {
@@ -72,16 +71,16 @@ path = "/tmp/model.gguf"
 	}
 }
 
-func TestLoadManeaterHierarchyNoConfigsIsEmpty(t *testing.T) {
+func TestLoadHierarchyNoConfigsIsEmpty(t *testing.T) {
 	tmpHome := t.TempDir()
 	projectDir := filepath.Join(tmpHome, "project")
 	if err := os.MkdirAll(projectDir, 0o755); err != nil {
 		t.Fatal(err)
 	}
 
-	cfg, err := LoadManeaterHierarchy(tmpHome, projectDir)
+	cfg, err := LoadHierarchy(tmpHome, projectDir)
 	if err != nil {
-		t.Fatalf("LoadManeaterHierarchy: %v", err)
+		t.Fatalf("LoadHierarchy: %v", err)
 	}
 
 	if len(cfg.Models) != 0 {
@@ -89,7 +88,7 @@ func TestLoadManeaterHierarchyNoConfigsIsEmpty(t *testing.T) {
 	}
 }
 
-func TestLoadManeaterHierarchyExpandsEnvInModelPath(t *testing.T) {
+func TestLoadHierarchyExpandsEnvInModelPath(t *testing.T) {
 	tmpHome := t.TempDir()
 
 	globalDir := filepath.Join(tmpHome, ".config", "maneater")
@@ -112,9 +111,9 @@ path = "$MANEATER_TEST_MODEL_DIR/model.gguf"
 
 	t.Setenv("MANEATER_TEST_MODEL_DIR", "/tmp/models")
 
-	cfg, err := LoadManeaterHierarchy(tmpHome, projectDir)
+	cfg, err := LoadHierarchy(tmpHome, projectDir)
 	if err != nil {
-		t.Fatalf("LoadManeaterHierarchy: %v", err)
+		t.Fatalf("LoadHierarchy: %v", err)
 	}
 
 	want := "/tmp/models/model.gguf"
@@ -123,7 +122,7 @@ path = "$MANEATER_TEST_MODEL_DIR/model.gguf"
 	}
 }
 
-func TestLoadManeaterHierarchyExpandsEnvBraceSyntax(t *testing.T) {
+func TestLoadHierarchyExpandsEnvBraceSyntax(t *testing.T) {
 	tmpHome := t.TempDir()
 
 	globalDir := filepath.Join(tmpHome, ".config", "maneater")
@@ -146,9 +145,9 @@ path = "${MANEATER_TEST_DATA}/maneater/models/nomic.gguf"
 
 	t.Setenv("MANEATER_TEST_DATA", "/home/user/.local/share")
 
-	cfg, err := LoadManeaterHierarchy(tmpHome, projectDir)
+	cfg, err := LoadHierarchy(tmpHome, projectDir)
 	if err != nil {
-		t.Fatalf("LoadManeaterHierarchy: %v", err)
+		t.Fatalf("LoadHierarchy: %v", err)
 	}
 
 	want := "/home/user/.local/share/maneater/models/nomic.gguf"
@@ -157,7 +156,7 @@ path = "${MANEATER_TEST_DATA}/maneater/models/nomic.gguf"
 	}
 }
 
-func TestMergeConfigManpathIncludeAccumulates(t *testing.T) {
+func TestMergeManpathIncludeAccumulates(t *testing.T) {
 	base := ManeaterConfig{
 		Manpath: &ManpathConfig{
 			Include: []string{"/base/man"},
@@ -169,7 +168,7 @@ func TestMergeConfigManpathIncludeAccumulates(t *testing.T) {
 		},
 	}
 
-	merged := MergeConfig(base, overlay)
+	merged := Merge(base, overlay)
 	if merged.Manpath == nil {
 		t.Fatal("merged manpath should not be nil")
 	}
@@ -184,7 +183,7 @@ func TestMergeConfigManpathIncludeAccumulates(t *testing.T) {
 	}
 }
 
-func TestMergeConfigManpathNoAutoOverlays(t *testing.T) {
+func TestMergeManpathNoAutoOverlays(t *testing.T) {
 	base := ManeaterConfig{
 		Manpath: &ManpathConfig{NoAuto: false},
 	}
@@ -192,13 +191,13 @@ func TestMergeConfigManpathNoAutoOverlays(t *testing.T) {
 		Manpath: &ManpathConfig{NoAuto: true},
 	}
 
-	merged := MergeConfig(base, overlay)
+	merged := Merge(base, overlay)
 	if !merged.Manpath.NoAuto {
 		t.Error("overlay no-auto=true should override base no-auto=false")
 	}
 }
 
-func TestMergeConfigManpathBaseOnlyPreserved(t *testing.T) {
+func TestMergeManpathBaseOnlyPreserved(t *testing.T) {
 	base := ManeaterConfig{
 		Manpath: &ManpathConfig{
 			Include: []string{"/base/man"},
@@ -207,7 +206,7 @@ func TestMergeConfigManpathBaseOnlyPreserved(t *testing.T) {
 	}
 	overlay := ManeaterConfig{}
 
-	merged := MergeConfig(base, overlay)
+	merged := Merge(base, overlay)
 	if merged.Manpath == nil || len(merged.Manpath.Include) != 1 {
 		t.Error("base manpath should be preserved when overlay has none")
 	}
@@ -233,7 +232,7 @@ paths = ["*.go"]
 	if err != nil {
 		t.Fatalf("parse error: %v", err)
 	}
-	corpora := decodeCorporaFromCST(doc)
+	corpora := DecodeCorpora(doc)
 	if len(corpora) != 2 {
 		t.Fatalf("expected 2 corpora, got %d", len(corpora))
 	}
@@ -283,7 +282,7 @@ paths = ["*.md"]
 		t.Errorf("model path wrong")
 	}
 
-	corpora := decodeCorporaFromCST(doc)
+	corpora := DecodeCorpora(doc)
 	if len(corpora) != 1 {
 		t.Fatalf("expected 1 corpus, got %d", len(corpora))
 	}
@@ -304,7 +303,7 @@ func TestMergeCorporaAccumulates(t *testing.T) {
 		},
 	}
 
-	merged := MergeConfig(base, overlay)
+	merged := Merge(base, overlay)
 	if len(merged.Corpora) != 2 {
 		t.Fatalf("expected 2 corpora, got %d", len(merged.Corpora))
 	}
@@ -343,9 +342,9 @@ paths = ["*.md"]
 		t.Fatal(err)
 	}
 
-	cfg, err := LoadManeaterHierarchy(tmpHome, projectDir)
+	cfg, err := LoadHierarchy(tmpHome, projectDir)
 	if err != nil {
-		t.Fatalf("LoadManeaterHierarchy: %v", err)
+		t.Fatalf("LoadHierarchy: %v", err)
 	}
 
 	if len(cfg.Models) != 1 {
@@ -385,7 +384,7 @@ store-id = "my-bucket"
 	}
 }
 
-func TestMergeConfigStorageOverlayReplaces(t *testing.T) {
+func TestMergeStorageOverlayReplaces(t *testing.T) {
 	base := ManeaterConfig{
 		Storage: &StorageConfig{
 			ReadCmd:  []string{"old", "read"},
@@ -401,7 +400,7 @@ func TestMergeConfigStorageOverlayReplaces(t *testing.T) {
 		},
 	}
 
-	merged := MergeConfig(base, overlay)
+	merged := Merge(base, overlay)
 	if merged.Storage == nil {
 		t.Fatal("merged storage should not be nil")
 	}
@@ -413,7 +412,7 @@ func TestMergeConfigStorageOverlayReplaces(t *testing.T) {
 	}
 }
 
-func TestMergeConfigStorageBasePreserved(t *testing.T) {
+func TestMergeStorageBasePreserved(t *testing.T) {
 	base := ManeaterConfig{
 		Storage: &StorageConfig{
 			ReadCmd: []string{"base", "read"},
@@ -422,7 +421,7 @@ func TestMergeConfigStorageBasePreserved(t *testing.T) {
 	}
 	overlay := ManeaterConfig{}
 
-	merged := MergeConfig(base, overlay)
+	merged := Merge(base, overlay)
 	if merged.Storage == nil {
 		t.Fatal("base storage should be preserved when overlay has none")
 	}
@@ -433,7 +432,7 @@ func TestMergeConfigStorageBasePreserved(t *testing.T) {
 
 func TestResolveStorageDefaults(t *testing.T) {
 	cfg := ManeaterConfig{}
-	sc := resolveStorage(cfg)
+	sc := ResolveStorage(cfg)
 	if sc.StoreID != "maneater" {
 		t.Errorf("default store-id = %q, want maneater", sc.StoreID)
 	}
@@ -453,7 +452,7 @@ func TestResolveStorageExplicit(t *testing.T) {
 			StoreID:  "custom",
 		},
 	}
-	sc := resolveStorage(cfg)
+	sc := ResolveStorage(cfg)
 	if sc.StoreID != "custom" {
 		t.Errorf("store-id = %q, want custom", sc.StoreID)
 	}
@@ -462,14 +461,13 @@ func TestResolveStorageExplicit(t *testing.T) {
 	}
 }
 
-func TestLoadManeaterHierarchyBaseFromEnv(t *testing.T) {
+func TestLoadHierarchyBaseFromEnv(t *testing.T) {
 	home := t.TempDir()
 	dir := filepath.Join(home, "project")
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		t.Fatal(err)
 	}
 
-	// Base config provides a model.
 	baseDir := t.TempDir()
 	basePath := filepath.Join(baseDir, "maneater.toml")
 	if err := os.WriteFile(basePath, []byte(`
@@ -480,7 +478,6 @@ path = "/base/model.gguf"
 		t.Fatal(err)
 	}
 
-	// Project config adds corpora (no models).
 	if err := os.WriteFile(filepath.Join(dir, "maneater.toml"), []byte(`
 [[corpora]]
 name = "docs"
@@ -492,29 +489,27 @@ paths = ["*.md"]
 
 	t.Setenv("MANEATER_CONFIG", basePath)
 
-	cfg, err := LoadManeaterHierarchy(home, dir)
+	cfg, err := LoadHierarchy(home, dir)
 	if err != nil {
-		t.Fatalf("LoadManeaterHierarchy: %v", err)
+		t.Fatalf("LoadHierarchy: %v", err)
 	}
 
-	// Model from base layer should be present.
 	if cfg.Models["base-model"].Path != "/base/model.gguf" {
 		t.Errorf("expected base model, got models = %v", cfg.Models)
 	}
 
-	// Corpora from project layer should accumulate on top.
 	if len(cfg.Corpora) != 1 || cfg.Corpora[0].Name != "docs" {
 		t.Errorf("expected project corpora, got %v", cfg.Corpora)
 	}
 }
 
-func TestActiveModelFromConfigSingleModel(t *testing.T) {
+func TestActiveModelSingleModel(t *testing.T) {
 	cfg := ManeaterConfig{
 		Models: map[string]ModelConfig{
 			"only": {Path: "/model.gguf"},
 		},
 	}
-	name, model, err := activeModelFromConfig(cfg)
+	name, model, err := ActiveModel(cfg)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -526,14 +521,14 @@ func TestActiveModelFromConfigSingleModel(t *testing.T) {
 	}
 }
 
-func TestActiveModelFromConfigNoModels(t *testing.T) {
-	_, _, err := activeModelFromConfig(ManeaterConfig{})
+func TestActiveModelNoModels(t *testing.T) {
+	_, _, err := ActiveModel(ManeaterConfig{})
 	if err == nil {
 		t.Error("expected error for empty models")
 	}
 }
 
-func TestActiveModelFromConfigDefaultKey(t *testing.T) {
+func TestActiveModelDefaultKey(t *testing.T) {
 	cfg := ManeaterConfig{
 		Default: "b",
 		Models: map[string]ModelConfig{
@@ -541,7 +536,7 @@ func TestActiveModelFromConfigDefaultKey(t *testing.T) {
 			"b": {Path: "/b.gguf"},
 		},
 	}
-	name, model, err := activeModelFromConfig(cfg)
+	name, model, err := ActiveModel(cfg)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -553,14 +548,14 @@ func TestActiveModelFromConfigDefaultKey(t *testing.T) {
 	}
 }
 
-func TestActiveModelFromConfigMultipleNoDefault(t *testing.T) {
+func TestActiveModelMultipleNoDefault(t *testing.T) {
 	cfg := ManeaterConfig{
 		Models: map[string]ModelConfig{
 			"a": {Path: "/a.gguf"},
 			"b": {Path: "/b.gguf"},
 		},
 	}
-	_, _, err := activeModelFromConfig(cfg)
+	_, _, err := ActiveModel(cfg)
 	if err == nil {
 		t.Error("expected error for multiple models without default")
 	}

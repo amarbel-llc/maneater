@@ -15,6 +15,7 @@ import (
 	"sync"
 
 	"github.com/amarbel-llc/maneater/internal/blobstore"
+	"github.com/amarbel-llc/maneater/internal/config"
 	"github.com/amarbel-llc/maneater/internal/embedding"
 	"github.com/amarbel-llc/maneater/internal/manifest"
 	"github.com/amarbel-llc/maneater/internal/manpath"
@@ -26,9 +27,9 @@ type searcher struct {
 	mu        sync.Mutex
 	embedder  *embedding.Embedder
 	index     *embedding.Index
-	cfg       ManeaterConfig
+	cfg       config.ManeaterConfig
 	modelName string
-	modelCfg  ModelConfig
+	modelCfg  config.ModelConfig
 	manpath   []string
 	corpora   []Corpus
 }
@@ -166,7 +167,7 @@ func runSearch(args []string) error {
 		return fmt.Errorf("usage: maneater search <query> [--top-k N]")
 	}
 
-	cfg, err := LoadDefaultManeaterHierarchy()
+	cfg, err := config.LoadDefault()
 	if err != nil {
 		return fmt.Errorf("loading config: %w", err)
 	}
@@ -230,7 +231,7 @@ func (s *searcher) ensureSearchReady() error {
 	}
 
 	if s.modelCfg.Path == "" {
-		name, model, err := activeModelFromConfig(s.cfg)
+		name, model, err := config.ActiveModel(s.cfg)
 		if err != nil {
 			return err
 		}
@@ -258,14 +259,14 @@ func (s *searcher) ensureSearchReady() error {
 }
 
 func (s *searcher) loadOrBuildIndex() (*embedding.Index, error) {
-	sc := resolveStorage(s.cfg)
+	sc := config.ResolveStorage(s.cfg)
 	store := &blobstore.CommandBlobStore{ReadCmd: sc.ReadCmd, WriteCmd: sc.WriteCmd}
 
 	var combined *embedding.Index
 
 	for _, corpus := range s.corpora {
 		cc := corpusConfigForCorpus(corpus, s.cfg)
-		cfgHash := ConfigHash(s.modelCfg, cc)
+		cfgHash := config.Hash(s.modelCfg, cc)
 		dataDir := indexDataDir(corpus.Name(), cfgHash)
 
 		man, err := manifest.Load(dataDir)
@@ -340,18 +341,18 @@ func indexDataDir(corpusName, configHash string) string {
 
 // corpusConfigForCorpus returns the CorpusConfig matching a corpus by name.
 // Returns a zero-value CorpusConfig for the implicit manpages corpus.
-func corpusConfigForCorpus(c Corpus, cfg ManeaterConfig) CorpusConfig {
+func corpusConfigForCorpus(c Corpus, cfg config.ManeaterConfig) config.CorpusConfig {
 	for _, cc := range cfg.Corpora {
 		if cc.Name == c.Name() {
 			return cc
 		}
 	}
-	return CorpusConfig{}
+	return config.CorpusConfig{}
 }
 
 // resolveManpathFromConfig unwraps the optional ManpathConfig into the flat
 // arguments manpath.Resolve expects.
-func resolveManpathFromConfig(cfg *ManpathConfig, cwd string) ([]string, error) {
+func resolveManpathFromConfig(cfg *config.ManpathConfig, cwd string) ([]string, error) {
 	var include []string
 	var noAuto bool
 	if cfg != nil {
@@ -462,7 +463,42 @@ func (c *manpagesCorpus) Documents() iter.Seq2[Document, error] {
 	}
 }
 
-func resolveCorpora(cfg ManeaterConfig, manpath []string) ([]Corpus, error) {
+// corpusFromConfig builds a Corpus from a CorpusConfig for the "files" and
+// "command" types. (Manpages has a separate construction path.) Will move to
+// the corpus package alongside FilesCorpus/CommandCorpus in a later step.
+func corpusFromConfig(cc config.CorpusConfig) (Corpus, error) {
+	switch cc.Type {
+	case "files":
+		if cc.Name == "" {
+			return nil, fmt.Errorf("corpus of type %q requires a name", cc.Type)
+		}
+		return &FilesCorpus{
+			CorpusName: cc.Name,
+			Patterns:   cc.Paths,
+			MaxChars:   cc.MaxChars,
+		}, nil
+	case "command":
+		if cc.Name == "" {
+			return nil, fmt.Errorf("corpus of type %q requires a name", cc.Type)
+		}
+		if len(cc.ListCmd) == 0 {
+			return nil, fmt.Errorf("corpus %q: command type requires list-cmd", cc.Name)
+		}
+		if len(cc.ReadCmd) == 0 {
+			return nil, fmt.Errorf("corpus %q: command type requires read-cmd", cc.Name)
+		}
+		return &CommandCorpus{
+			CorpusName: cc.Name,
+			ListCmd:    cc.ListCmd,
+			ReadCmd:    cc.ReadCmd,
+			MaxChars:   cc.MaxChars,
+		}, nil
+	default:
+		return nil, fmt.Errorf("unknown corpus type %q", cc.Type)
+	}
+}
+
+func resolveCorpora(cfg config.ManeaterConfig, manpath []string) ([]Corpus, error) {
 	// If no corpora configured, use implicit manpages corpus.
 	if len(cfg.Corpora) == 0 {
 		return []Corpus{&manpagesCorpus{manpath: manpath}}, nil
@@ -495,12 +531,12 @@ func runIndex() error {
 		}
 	}
 
-	cfg, err := LoadDefaultManeaterHierarchy()
+	cfg, err := config.LoadDefault()
 	if err != nil {
 		return fmt.Errorf("loading config: %w", err)
 	}
 
-	modelName, modelCfg, err := activeModelFromConfig(cfg)
+	modelName, modelCfg, err := config.ActiveModel(cfg)
 	if err != nil {
 		return err
 	}
@@ -528,12 +564,12 @@ func runIndex() error {
 	}
 	defer emb.Close()
 
-	sc := resolveStorage(cfg)
+	sc := config.ResolveStorage(cfg)
 	store := &blobstore.CommandBlobStore{ReadCmd: sc.ReadCmd, WriteCmd: sc.WriteCmd}
 
 	for _, corpus := range corpora {
 		cc := corpusConfigForCorpus(corpus, cfg)
-		cfgHash := ConfigHash(modelCfg, cc)
+		cfgHash := config.Hash(modelCfg, cc)
 		dataDir := indexDataDir(corpus.Name(), cfgHash)
 
 		// Load existing entries from blob store for incremental reuse.
@@ -627,12 +663,12 @@ func runIndex() error {
 }
 
 func runInitStore() error {
-	cfg, err := LoadDefaultManeaterHierarchy()
+	cfg, err := config.LoadDefault()
 	if err != nil {
 		return fmt.Errorf("loading config: %w", err)
 	}
 
-	sc := resolveStorage(cfg)
+	sc := config.ResolveStorage(cfg)
 
 	listed, err := exec.Command("madder", "list").Output()
 	if err != nil {

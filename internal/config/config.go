@@ -1,4 +1,7 @@
-package main
+// Package config loads and merges maneater.toml hierarchies, defines the
+// typed configuration schema consumed by the rest of maneater, and exposes
+// helpers for computing config-aware cache hashes.
+package config
 
 import (
 	"errors"
@@ -65,15 +68,15 @@ func loadManeaterFile(path string) (ManeaterConfig, bool, error) {
 	}
 
 	cfg := *doc.Data()
-	cfg.Corpora = decodeCorporaFromCST(doc)
+	cfg.Corpora = DecodeCorpora(doc)
 
 	return cfg, true, nil
 }
 
-// decodeCorporaFromCST extracts [[corpora]] array-of-tables entries from the
-// tommy CST. Tommy doesn't generate code for array-of-tables, so we walk the
-// CST manually using the same primitives the generated code uses.
-func decodeCorporaFromCST(doc *ManeaterConfigDocument) []CorpusConfig {
+// DecodeCorpora extracts [[corpora]] array-of-tables entries from the tommy
+// CST. Tommy doesn't generate code for array-of-tables, so we walk the CST
+// manually using the same primitives the generated code uses.
+func DecodeCorpora(doc *ManeaterConfigDocument) []CorpusConfig {
 	var corpora []CorpusConfig
 
 	for _, ch := range doc.cstDoc.Root().Children {
@@ -122,17 +125,16 @@ func decodeCorporaFromCST(doc *ManeaterConfigDocument) []CorpusConfig {
 	return corpora
 }
 
-// MergeConfig combines base and overlay configs. Models are merged by name
+// Merge combines base and overlay configs. Models are merged by name
 // (overlay wins per key). Exec rules accumulate (both allow and deny lists
 // are appended). Scalar fields (Default) are overwritten by overlay if set.
-func MergeConfig(base, overlay ManeaterConfig) ManeaterConfig {
+func Merge(base, overlay ManeaterConfig) ManeaterConfig {
 	merged := base
 
 	if overlay.Default != "" {
 		merged.Default = overlay.Default
 	}
 
-	// Merge models: overlay wins per key.
 	if len(overlay.Models) > 0 {
 		if merged.Models == nil {
 			merged.Models = make(map[string]ModelConfig)
@@ -142,16 +144,13 @@ func MergeConfig(base, overlay ManeaterConfig) ManeaterConfig {
 		}
 	}
 
-	// Accumulate corpora across hierarchy levels.
 	merged.Corpora = append(merged.Corpora, overlay.Corpora...)
 
-	// Overlay storage replaces base entirely.
 	if overlay.Storage != nil {
 		cp := *overlay.Storage
 		merged.Storage = &cp
 	}
 
-	// Accumulate manpath include paths; overlay's no-auto replaces base's.
 	if overlay.Manpath != nil {
 		if merged.Manpath == nil {
 			cp := *overlay.Manpath
@@ -167,14 +166,14 @@ func MergeConfig(base, overlay ManeaterConfig) ManeaterConfig {
 	return merged
 }
 
-// LoadManeaterHierarchy loads and merges maneater.toml files from:
+// LoadHierarchy loads and merges maneater.toml files from:
 //  1. ~/.config/maneater/maneater.toml (global)
 //  2. Each parent directory between home and dir
 //  3. ./maneater.toml (project-local)
 //
 // Falls back to ~/.config/maneater/models.toml at the global level if
 // maneater.toml doesn't exist there (backward compatibility).
-func LoadManeaterHierarchy(home, dir string) (ManeaterConfig, error) {
+func LoadHierarchy(home, dir string) (ManeaterConfig, error) {
 	merged := ManeaterConfig{}
 
 	loadAndMerge := func(path string) error {
@@ -183,19 +182,17 @@ func LoadManeaterHierarchy(home, dir string) (ManeaterConfig, error) {
 			return err
 		}
 		if found {
-			merged = MergeConfig(merged, cfg)
+			merged = Merge(merged, cfg)
 		}
 		return nil
 	}
 
-	// 0. Base: bundled config via MANEATER_CONFIG (lowest priority).
 	if base := os.Getenv("MANEATER_CONFIG"); base != "" {
 		if err := loadAndMerge(base); err != nil {
 			return ManeaterConfig{}, err
 		}
 	}
 
-	// 1. Global config: try maneater.toml first, fall back to models.toml.
 	globalDir := filepath.Join(home, ".config", "maneater")
 	globalPath := filepath.Join(globalDir, "maneater.toml")
 	cfg, found, err := loadManeaterFile(globalPath)
@@ -203,16 +200,14 @@ func LoadManeaterHierarchy(home, dir string) (ManeaterConfig, error) {
 		return ManeaterConfig{}, err
 	}
 	if found {
-		merged = MergeConfig(merged, cfg)
+		merged = Merge(merged, cfg)
 	} else {
-		// Fallback: models.toml for backward compatibility.
 		fallbackPath := filepath.Join(globalDir, "models.toml")
 		if err := loadAndMerge(fallbackPath); err != nil {
 			return ManeaterConfig{}, err
 		}
 	}
 
-	// 2. Intermediate parent directories walking down from home to dir.
 	cleanHome := filepath.Clean(home)
 	cleanDir := filepath.Clean(dir)
 
@@ -228,7 +223,6 @@ func LoadManeaterHierarchy(home, dir string) (ManeaterConfig, error) {
 		}
 	}
 
-	// 3. Target directory maneater.toml.
 	dirPath := filepath.Join(cleanDir, "maneater.toml")
 	if err := loadAndMerge(dirPath); err != nil {
 		return ManeaterConfig{}, err
@@ -239,42 +233,10 @@ func LoadManeaterHierarchy(home, dir string) (ManeaterConfig, error) {
 	return merged, nil
 }
 
-func corpusFromConfig(cc CorpusConfig) (Corpus, error) {
-	switch cc.Type {
-	case "files":
-		if cc.Name == "" {
-			return nil, fmt.Errorf("corpus of type %q requires a name", cc.Type)
-		}
-		return &FilesCorpus{
-			CorpusName: cc.Name,
-			Patterns:   cc.Paths,
-			MaxChars:   cc.MaxChars,
-		}, nil
-	case "command":
-		if cc.Name == "" {
-			return nil, fmt.Errorf("corpus of type %q requires a name", cc.Type)
-		}
-		if len(cc.ListCmd) == 0 {
-			return nil, fmt.Errorf("corpus %q: command type requires list-cmd", cc.Name)
-		}
-		if len(cc.ReadCmd) == 0 {
-			return nil, fmt.Errorf("corpus %q: command type requires read-cmd", cc.Name)
-		}
-		return &CommandCorpus{
-			CorpusName: cc.Name,
-			ListCmd:    cc.ListCmd,
-			ReadCmd:    cc.ReadCmd,
-			MaxChars:   cc.MaxChars,
-		}, nil
-	default:
-		return nil, fmt.Errorf("unknown corpus type %q", cc.Type)
-	}
-}
-
-// resolveStorage returns the effective storage config. When no [storage]
+// ResolveStorage returns the effective storage config. When no [storage]
 // section is configured, it returns madder defaults targeting the "maneater"
 // store.
-func resolveStorage(cfg ManeaterConfig) StorageConfig {
+func ResolveStorage(cfg ManeaterConfig) StorageConfig {
 	if cfg.Storage != nil {
 		return *cfg.Storage
 	}
@@ -295,9 +257,9 @@ func expandEnvInModels(cfg *ManeaterConfig) {
 	}
 }
 
-// LoadDefaultManeaterHierarchy is a convenience wrapper using the real home
-// directory and working directory.
-func LoadDefaultManeaterHierarchy() (ManeaterConfig, error) {
+// LoadDefault is a convenience wrapper using the real home directory and
+// working directory.
+func LoadDefault() (ManeaterConfig, error) {
 	home, err := os.UserHomeDir()
 	if err != nil {
 		return ManeaterConfig{}, err
@@ -308,10 +270,12 @@ func LoadDefaultManeaterHierarchy() (ManeaterConfig, error) {
 		return ManeaterConfig{}, err
 	}
 
-	return LoadManeaterHierarchy(home, cwd)
+	return LoadHierarchy(home, cwd)
 }
 
-func activeModelFromConfig(cfg ManeaterConfig) (string, ModelConfig, error) {
+// ActiveModel picks the model specified by cfg.Default, or the single model
+// if there's only one, returning its name and config.
+func ActiveModel(cfg ManeaterConfig) (string, ModelConfig, error) {
 	if len(cfg.Models) == 0 {
 		return "", ModelConfig{}, fmt.Errorf(
 			"no [models.*] entries in config hierarchy\n\nCreate a maneater.toml with at least one [models.<name>] entry",

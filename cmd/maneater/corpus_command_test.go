@@ -2,6 +2,8 @@ package main
 
 import (
 	"testing"
+
+	"github.com/amarbel-llc/maneater/internal/config"
 )
 
 func collectDocuments(t *testing.T, c Corpus) ([]Document, []error) {
@@ -165,11 +167,11 @@ list-cmd = ["nebulous", "corpus-list"]
 read-cmd = ["nebulous", "corpus-read"]
 max-chars = 2000
 `)
-	doc, err := DecodeManeaterConfig(input)
+	doc, err := config.DecodeManeaterConfig(input)
 	if err != nil {
 		t.Fatalf("parse error: %v", err)
 	}
-	corpora := decodeCorporaFromCST(doc)
+	corpora := config.DecodeCorpora(doc)
 	if len(corpora) != 1 {
 		t.Fatalf("expected 1 corpus, got %d", len(corpora))
 	}
@@ -193,7 +195,7 @@ max-chars = 2000
 }
 
 func TestCorpusFromConfigCommand(t *testing.T) {
-	cc := CorpusConfig{
+	cc := config.CorpusConfig{
 		Name:    "test",
 		Type:    "command",
 		ListCmd: []string{"echo", "key"},
@@ -212,11 +214,11 @@ func TestCorpusFromConfigCommand(t *testing.T) {
 func TestCorpusFromConfigCommandValidation(t *testing.T) {
 	tests := []struct {
 		name string
-		cc   CorpusConfig
+		cc   config.CorpusConfig
 	}{
-		{"no name", CorpusConfig{Type: "command", ListCmd: []string{"echo"}, ReadCmd: []string{"echo"}}},
-		{"no list-cmd", CorpusConfig{Name: "x", Type: "command", ReadCmd: []string{"echo"}}},
-		{"no read-cmd", CorpusConfig{Name: "x", Type: "command", ListCmd: []string{"echo"}}},
+		{"no name", config.CorpusConfig{Type: "command", ListCmd: []string{"echo"}, ReadCmd: []string{"echo"}}},
+		{"no list-cmd", config.CorpusConfig{Name: "x", Type: "command", ReadCmd: []string{"echo"}}},
+		{"no read-cmd", config.CorpusConfig{Name: "x", Type: "command", ListCmd: []string{"echo"}}},
 	}
 
 	for _, tt := range tests {
