@@ -1,6 +1,7 @@
 package commands
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"strconv"
@@ -17,6 +18,7 @@ import (
 // searcher holds state for the embedding-based search pipeline.
 type searcher struct {
 	mu        sync.Mutex
+	ctx       context.Context
 	embedder  *embedding.Embedder
 	index     *embedding.Index
 	cfg       config.ManeaterConfig
@@ -28,7 +30,7 @@ type searcher struct {
 
 // RunSearch parses args ("<query words...> [--top-k N]"), loads the index,
 // embeds the query, and prints ranked results to stdout.
-func RunSearch(args []string) error {
+func RunSearch(ctx context.Context, args []string) error {
 	topK := 10
 	var queryParts []string
 
@@ -70,7 +72,13 @@ func RunSearch(args []string) error {
 		return err
 	}
 
-	s := &searcher{cfg: cfg, manpath: manPaths, corpora: corpora}
+	for _, c := range corpora {
+		if cmdc, ok := c.(*corpus.CommandCorpus); ok {
+			cmdc.Ctx = ctx
+		}
+	}
+
+	s := &searcher{ctx: ctx, cfg: cfg, manpath: manPaths, corpora: corpora}
 	result, err := s.handleSearch(query, topK)
 	if err != nil {
 		return err
@@ -87,6 +95,10 @@ func (s *searcher) handleSearch(query string, topK int) (string, error) {
 
 	s.mu.Lock()
 	defer s.mu.Unlock()
+
+	if err := s.ctx.Err(); err != nil {
+		return "", err
+	}
 
 	queryText := s.modelCfg.QueryPrefix + query
 	queryEmb, err := s.embedder.Embed(queryText)
@@ -148,6 +160,10 @@ func (s *searcher) loadOrBuildIndex() (*embedding.Index, error) {
 	var combined *embedding.Index
 
 	for _, c := range s.corpora {
+		if err := s.ctx.Err(); err != nil {
+			return nil, err
+		}
+
 		cc := corpusConfigForCorpus(c, s.cfg)
 		cfgHash := config.Hash(s.modelCfg, cc)
 		dataDir := indexDataDir(c.Name(), cfgHash)
@@ -164,7 +180,7 @@ func (s *searcher) loadOrBuildIndex() (*embedding.Index, error) {
 			continue
 		}
 
-		blob, err := store.Read(man.BlobDigest)
+		blob, err := store.Read(s.ctx, man.BlobDigest)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "maneater: could not fetch %s from blob store: %v\n",
 				c.Name(), err)

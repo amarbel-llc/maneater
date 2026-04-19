@@ -1,18 +1,22 @@
 package commands
 
 import (
+	"context"
 	"fmt"
 	"os"
 
 	"github.com/amarbel-llc/maneater/internal/config"
+	"github.com/amarbel-llc/maneater/internal/corpus"
 	"github.com/amarbel-llc/maneater/internal/embedding"
 	"github.com/amarbel-llc/maneater/internal/madder"
 	"github.com/amarbel-llc/maneater/internal/manifest"
 )
 
 // RunIndex embeds every configured corpus and writes the resulting blobs to
-// the configured madder store. Reads os.Args for the --force flag.
-func RunIndex() error {
+// the configured madder store. Reads os.Args for the --force flag. Honors
+// ctx cancellation between documents, between corpora, and in every
+// subprocess shell-out (madder + command corpora).
+func RunIndex(ctx context.Context) error {
 	force := false
 	for _, arg := range os.Args[2:] {
 		if arg == "--force" {
@@ -45,6 +49,23 @@ func RunIndex() error {
 		return err
 	}
 
+	for _, c := range corpora {
+		if cmdc, ok := c.(*corpus.CommandCorpus); ok {
+			cmdc.Ctx = ctx
+		}
+	}
+
+	sc := config.ResolveStorage(cfg)
+	store := &madder.Store{StoreID: sc.StoreID}
+
+	exists, err := store.Exists(ctx)
+	if err != nil {
+		return err
+	}
+	if !exists {
+		return fmt.Errorf("madder store %q is not initialized — run 'maneater init-store' first", store.StoreID)
+	}
+
 	fmt.Printf("Using model %q from %s\n", modelName, modelCfg.Path)
 
 	emb, err := embedding.NewEmbedder(modelCfg.Path)
@@ -53,10 +74,11 @@ func RunIndex() error {
 	}
 	defer emb.Close()
 
-	sc := config.ResolveStorage(cfg)
-	store := &madder.Store{StoreID: sc.StoreID}
-
 	for _, c := range corpora {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
+
 		cc := corpusConfigForCorpus(c, cfg)
 		cfgHash := config.Hash(modelCfg, cc)
 		dataDir := indexDataDir(c.Name(), cfgHash)
@@ -65,7 +87,7 @@ func RunIndex() error {
 		existing := make(map[string]embedding.CachedEntry)
 		if !force {
 			if man, err := manifest.Load(dataDir); err == nil && man.ConfigHash == cfgHash {
-				if blob, err := store.Read(man.BlobDigest); err == nil {
+				if blob, err := store.Read(ctx, man.BlobDigest); err == nil {
 					if _, cached, err := embedding.UnmarshalIndexBlob(blob); err == nil {
 						for _, e := range cached {
 							existing[e.Key] = e
@@ -85,6 +107,9 @@ func RunIndex() error {
 		var reusedCount, embeddedCount int
 
 		for doc, docErr := range c.Documents() {
+			if err := ctx.Err(); err != nil {
+				return err
+			}
 			if docErr != nil {
 				fmt.Fprintf(os.Stderr, "maneater: skipping document: %v\n", docErr)
 				continue
@@ -99,6 +124,9 @@ func RunIndex() error {
 
 			// Embed all text chunks for this document.
 			for _, text := range doc.Texts {
+				if err := ctx.Err(); err != nil {
+					return err
+				}
 				docText := modelCfg.DocumentPrefix + text
 				vec, embErr := emb.Embed(docText)
 				if embErr != nil {
@@ -130,9 +158,9 @@ func RunIndex() error {
 		if err != nil {
 			return fmt.Errorf("serializing index blob for %s: %w", c.Name(), err)
 		}
-		digest, err := store.Write(blob)
+		digest, err := store.Write(ctx, blob)
 		if err != nil {
-			return fmt.Errorf("writing blob for %s: %w\nRun 'maneater init-store' to initialize the madder store.", c.Name(), err)
+			return fmt.Errorf("writing blob for %s: %w", c.Name(), err)
 		}
 		if err := manifest.Save(dataDir, manifest.IndexManifest{
 			BlobDigest: digest,

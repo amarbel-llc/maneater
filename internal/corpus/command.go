@@ -2,6 +2,7 @@ package corpus
 
 import (
 	"bytes"
+	"context"
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
@@ -13,11 +14,16 @@ import (
 // CommandCorpus indexes documents from an external command pair.
 // ListCmd outputs one document key per line to stdout.
 // ReadCmd receives a key as its final argument and outputs text to stdout.
+//
+// Callers that want SIGINT cancellation to propagate to the external
+// commands should set Ctx before iterating. A zero-value Ctx falls back to
+// context.Background inside Documents().
 type CommandCorpus struct {
 	CorpusName string
 	ListCmd    []string
 	ReadCmd    []string
 	MaxChars   int
+	Ctx        context.Context
 }
 
 func (c *CommandCorpus) Name() string { return c.CorpusName }
@@ -31,7 +37,12 @@ func (c *CommandCorpus) Documents() iter.Seq2[Document, error] {
 			maxChars = defaultMaxChars
 		}
 
-		keys, err := runCmd(c.ListCmd)
+		ctx := c.Ctx
+		if ctx == nil {
+			ctx = context.Background()
+		}
+
+		keys, err := runCmd(ctx, c.ListCmd)
 		if err != nil {
 			yield(Document{}, fmt.Errorf("list-cmd: %w", err))
 			return
@@ -43,7 +54,7 @@ func (c *CommandCorpus) Documents() iter.Seq2[Document, error] {
 			}
 
 			args := append(c.ReadCmd[1:], key) //nolint:gocritic
-			text, err := runCmd(append([]string{c.ReadCmd[0]}, args...))
+			text, err := runCmd(ctx, append([]string{c.ReadCmd[0]}, args...))
 			if err != nil {
 				if !yield(Document{}, fmt.Errorf("read-cmd %s: %w", key, err)) {
 					return
@@ -70,8 +81,8 @@ func (c *CommandCorpus) Documents() iter.Seq2[Document, error] {
 	}
 }
 
-func runCmd(argv []string) (string, error) {
-	cmd := exec.Command(argv[0], argv[1:]...)
+func runCmd(ctx context.Context, argv []string) (string, error) {
+	cmd := exec.CommandContext(ctx, argv[0], argv[1:]...)
 	var stdout, stderr bytes.Buffer
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr

@@ -4,6 +4,7 @@ package madder
 
 import (
 	"bytes"
+	"context"
 	"fmt"
 	"os"
 	"os/exec"
@@ -19,8 +20,8 @@ type Store struct {
 }
 
 // Read fetches a blob by digest via `madder cat <digest>`.
-func (s *Store) Read(digest string) ([]byte, error) {
-	cmd := exec.Command("madder", "cat", digest)
+func (s *Store) Read(ctx context.Context, digest string) ([]byte, error) {
+	cmd := exec.CommandContext(ctx, "madder", "cat", digest)
 
 	var stdout, stderr bytes.Buffer
 	cmd.Stdout = &stdout
@@ -34,8 +35,8 @@ func (s *Store) Read(digest string) ([]byte, error) {
 
 // Write streams data to `madder write <store-id> -` and returns the digest
 // reported by madder (parsed from TAP-formatted stdout).
-func (s *Store) Write(data []byte) (string, error) {
-	cmd := exec.Command("madder", "write", s.StoreID, "-")
+func (s *Store) Write(ctx context.Context, data []byte) (string, error) {
+	cmd := exec.CommandContext(ctx, "madder", "write", s.StoreID, "-")
 	cmd.Stdin = bytes.NewReader(data)
 
 	var stdout, stderr bytes.Buffer
@@ -54,14 +55,19 @@ func (s *Store) Write(data []byte) (string, error) {
 }
 
 // Exists reports whether the store already appears in `madder list`.
-func (s *Store) Exists() (bool, error) {
-	listed, err := exec.Command("madder", "list").Output()
+// The madder list output format is "<store-id>: <type> <characteristic>",
+// one store per line, so we compare against the token before the colon.
+func (s *Store) Exists(ctx context.Context) (bool, error) {
+	listed, err := exec.CommandContext(ctx, "madder", "list").Output()
 	if err != nil {
 		return false, fmt.Errorf("madder list: %w\nIs madder installed and on PATH?", err)
 	}
 	for _, line := range strings.Split(string(listed), "\n") {
-		fields := strings.Fields(line)
-		if len(fields) > 0 && fields[0] == s.StoreID {
+		name, _, ok := strings.Cut(line, ":")
+		if !ok {
+			continue
+		}
+		if strings.TrimSpace(name) == s.StoreID {
 			return true, nil
 		}
 	}
@@ -71,8 +77,8 @@ func (s *Store) Exists() (bool, error) {
 // Init runs `madder init <store-id>`, forwarding output to os.Stdout/Stderr.
 // The caller is responsible for handling the already-exists case (use Exists
 // first).
-func (s *Store) Init() error {
-	cmd := exec.Command("madder", "init", s.StoreID)
+func (s *Store) Init(ctx context.Context) error {
+	cmd := exec.CommandContext(ctx, "madder", "init", s.StoreID)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	if err := cmd.Run(); err != nil {

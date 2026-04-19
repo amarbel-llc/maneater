@@ -57,8 +57,8 @@ func newApp() *command.App {
 				Type:        command.Bool,
 			},
 		},
-		RunCLI: func(_ context.Context, _ json.RawMessage) error {
-			return commands.RunIndex()
+		RunCLI: func(ctx context.Context, _ json.RawMessage) error {
+			return commands.RunIndex(ctx)
 		},
 	})
 
@@ -83,8 +83,8 @@ func newApp() *command.App {
 				Required:    true,
 			},
 		},
-		RunCLI: func(_ context.Context, _ json.RawMessage) error {
-			return commands.RunSearch(os.Args[2:])
+		RunCLI: func(ctx context.Context, _ json.RawMessage) error {
+			return commands.RunSearch(ctx, os.Args[2:])
 		},
 	})
 
@@ -96,8 +96,8 @@ func newApp() *command.App {
 				"indexes across machines. Creates an XDG user store with the configured " +
 				"store ID (default: 'maneater'). Safe to run multiple times.",
 		},
-		RunCLI: func(_ context.Context, _ json.RawMessage) error {
-			return commands.RunInitStore()
+		RunCLI: func(ctx context.Context, _ json.RawMessage) error {
+			return commands.RunInitStore(ctx)
 		},
 	})
 

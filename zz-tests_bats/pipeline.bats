@@ -11,6 +11,16 @@ function init_store_succeeds { # @test
   init_maneater_store
 }
 
+function index_without_store_fails_fast { # @test
+  write_test_config
+  # deliberately NOT calling init_maneater_store
+
+  run_maneater index
+  assert_failure
+  assert_output --partial "init-store"
+  refute_output --partial "Using model"
+}
+
 function index_builds_with_files_corpus { # @test
   write_test_config
   init_maneater_store
