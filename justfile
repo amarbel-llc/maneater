@@ -41,6 +41,12 @@ fmt:
   gofumpt -w .
   goimports -w .
 
+# Regenerate the deterministic bench-manpath fixture pages
+# (zz-fixtures/manpages/man{1,5}/*). Output is byte-stable.
+[group('dev')]
+gen-manpages-fixtures:
+  zz-fixtures/manpages/gen.sh
+
 # Run wall-clock bench against a synthetic 200-file type=command corpus.
 # Uses the wrapped binary (so madder is on PATH) and MANEATER_TEST_CONFIG
 # (from the nix devshell). Results appended to docs/bench/<date>-bench.md.
