@@ -4,6 +4,7 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/amarbel-llc/maneater/internal/0/config"
@@ -38,6 +39,18 @@ func TestFromConfigDefaultsToMadderWithStoreID(t *testing.T) {
 func TestFromConfigCommandStoreWhenReadCmdSet(t *testing.T) {
 	s := storage.FromConfig(config.StorageConfig{
 		ReadCmd: []string{"cat"},
+	})
+	if _, ok := s.(*storage.CommandStore); !ok {
+		t.Fatalf("expected *storage.CommandStore, got %T", s)
+	}
+}
+
+// TestFromConfigCommandStoreWhenWriteCmdSet is the symmetric test: only
+// WriteCmd configured (no ReadCmd) still flips the dispatch to
+// CommandStore. Covers the OR branch in FromConfig.
+func TestFromConfigCommandStoreWhenWriteCmdSet(t *testing.T) {
+	s := storage.FromConfig(config.StorageConfig{
+		WriteCmd: []string{"cat"},
 	})
 	if _, ok := s.(*storage.CommandStore); !ok {
 		t.Fatalf("expected *storage.CommandStore, got %T", s)
@@ -177,5 +190,93 @@ func TestCommandStoreInitUnsetIsNoOp(t *testing.T) {
 	s := &storage.CommandStore{}
 	if err := s.Init(context.Background()); err != nil {
 		t.Errorf("Init with no cmd should be no-op, got %v", err)
+	}
+}
+
+// TestCommandStoreReadCmdFailure: non-zero exit from read-cmd surfaces
+// as an error whose message includes the digest arg and the stderr
+// from the child process.
+func TestCommandStoreReadCmdFailure(t *testing.T) {
+	s := &storage.CommandStore{
+		ReadCmd: []string{"sh", "-c", "echo >&2 no-such-blob; exit 2", "--"},
+	}
+	_, err := s.Read(context.Background(), "some-digest")
+	if err == nil {
+		t.Fatal("expected error from failing read-cmd")
+	}
+	msg := err.Error()
+	if !strings.Contains(msg, "some-digest") {
+		t.Errorf("error should mention the digest; got %q", msg)
+	}
+	if !strings.Contains(msg, "no-such-blob") {
+		t.Errorf("error should surface stderr; got %q", msg)
+	}
+}
+
+// TestCommandStoreWriteCmdFailure: non-zero exit from write-cmd surfaces
+// as an error including the write-cmd binary name and stderr.
+func TestCommandStoreWriteCmdFailure(t *testing.T) {
+	s := &storage.CommandStore{
+		WriteCmd: []string{"sh", "-c", "echo >&2 disk-full; exit 28", "--"},
+	}
+	_, err := s.Write(context.Background(), []byte("payload"))
+	if err == nil {
+		t.Fatal("expected error from failing write-cmd")
+	}
+	if !strings.Contains(err.Error(), "disk-full") {
+		t.Errorf("error should surface stderr; got %q", err)
+	}
+}
+
+// TestCommandStoreWriteBadOutput: write-cmd exits 0 but emits nothing,
+// so ParseDigestFromOutput returns an error. CommandStore must wrap
+// that rather than hand back the empty string.
+func TestCommandStoreWriteBadOutput(t *testing.T) {
+	s := &storage.CommandStore{
+		WriteCmd: []string{"sh", "-c", "true", "--"}, // exit 0, no stdout
+	}
+	_, err := s.Write(context.Background(), []byte("payload"))
+	if err == nil {
+		t.Fatal("expected error from empty write-cmd output")
+	}
+	if !strings.Contains(err.Error(), "parsing") {
+		t.Errorf("error should mention parsing; got %q", err)
+	}
+}
+
+// TestCommandStoreInitCmdFailure: non-zero exit from init-cmd surfaces
+// as an error carrying both stdout and stderr, so a failed init
+// doesn't silently lose the child process's diagnostics.
+func TestCommandStoreInitCmdFailure(t *testing.T) {
+	s := &storage.CommandStore{
+		InitCmd: []string{"sh", "-c", "echo init-stdout; echo >&2 init-stderr; exit 7", "--"},
+	}
+	err := s.Init(context.Background())
+	if err == nil {
+		t.Fatal("expected error from failing init-cmd")
+	}
+	msg := err.Error()
+	if !strings.Contains(msg, "init-stdout") {
+		t.Errorf("error should carry stdout; got %q", msg)
+	}
+	if !strings.Contains(msg, "init-stderr") {
+		t.Errorf("error should carry stderr; got %q", msg)
+	}
+}
+
+// TestCommandStoreExistsEmptyStoreIDSucceeds: when StoreID is unset, any
+// zero-exit exists-cmd (regardless of stdout shape) is treated as
+// "exists". Covers the fallback branch right for stores that don't
+// expose a canonical name token (e.g. S3 buckets).
+func TestCommandStoreExistsEmptyStoreIDSucceeds(t *testing.T) {
+	s := &storage.CommandStore{
+		ExistsCmd: []string{"true"}, // zero exit, empty stdout
+	}
+	ok, err := s.Exists(context.Background())
+	if err != nil {
+		t.Fatalf("Exists: %v", err)
+	}
+	if !ok {
+		t.Error("Exists with empty StoreID + success should return true")
 	}
 }
