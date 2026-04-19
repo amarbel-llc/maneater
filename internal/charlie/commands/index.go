@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 
+	tap "github.com/amarbel-llc/bob/packages/tap-dancer/go"
 	"github.com/amarbel-llc/maneater/internal/0/config"
 	"github.com/amarbel-llc/maneater/internal/0/embedding"
 	"github.com/amarbel-llc/maneater/internal/0/madder"
@@ -15,7 +16,10 @@ import (
 // RunIndex embeds every configured corpus and writes the resulting blobs to
 // the configured madder store. Reads os.Args for the --force flag. Honors
 // ctx cancellation between documents, between corpora, and in every
-// subprocess shell-out (madder + command corpora).
+// subprocess shell-out (madder + command corpora). Emits TAP-14 progress to
+// stdout: `ok N - <key>` per embedded document, `ok N - <key> # SKIP reused
+// from blob store` per incremental reuse, `not ok N - <key>` per per-doc
+// error, `bail out!` on fast-fails.
 func RunIndex(ctx context.Context) error {
 	force := false
 	for _, arg := range os.Args[2:] {
@@ -24,28 +28,35 @@ func RunIndex(ctx context.Context) error {
 		}
 	}
 
+	tw := tap.NewWriter(os.Stdout)
+
 	cfg, err := config.LoadDefault()
 	if err != nil {
+		tw.BailOut(fmt.Sprintf("loading config: %v", err))
 		return fmt.Errorf("loading config: %w", err)
 	}
 
 	modelName, modelCfg, err := config.ActiveModel(cfg)
 	if err != nil {
+		tw.BailOut(err.Error())
 		return err
 	}
 
 	cwd, err := os.Getwd()
 	if err != nil {
+		tw.BailOut(err.Error())
 		return err
 	}
 
 	manPaths, err := resolveManpathFromConfig(cfg.Manpath, cwd)
 	if err != nil {
+		tw.BailOut(err.Error())
 		return err
 	}
 
 	corpora, err := resolveCorpora(cfg, manPaths)
 	if err != nil {
+		tw.BailOut(err.Error())
 		return err
 	}
 
@@ -60,16 +71,20 @@ func RunIndex(ctx context.Context) error {
 
 	exists, err := store.Exists(ctx)
 	if err != nil {
+		tw.BailOut(fmt.Sprintf("madder list: %v", err))
 		return err
 	}
 	if !exists {
-		return fmt.Errorf("madder store %q is not initialized — run 'maneater init-store' first", store.StoreID)
+		msg := fmt.Sprintf("madder store %q is not initialized — run 'maneater init-store' first", store.StoreID)
+		tw.BailOut(msg)
+		return fmt.Errorf("%s", msg)
 	}
 
-	fmt.Printf("Using model %q from %s\n", modelName, modelCfg.Path)
+	tw.Comment(fmt.Sprintf("using model %q from %s", modelName, modelCfg.Path))
 
 	emb, err := embedding.NewEmbedder(modelCfg.Path)
 	if err != nil {
+		tw.BailOut(fmt.Sprintf("loading model: %v", err))
 		return fmt.Errorf("loading model: %w", err)
 	}
 	defer emb.Close()
@@ -92,14 +107,15 @@ func RunIndex(ctx context.Context) error {
 						for _, e := range cached {
 							existing[e.Key] = e
 						}
-						fmt.Fprintf(os.Stderr, "maneater: loaded %d entries from blob store for %s\n",
-							len(existing), c.Name())
+						tw.Comment(fmt.Sprintf("loaded %d entries from blob store for %s",
+							len(existing), c.Name()))
 					}
 				}
 			}
 		}
 
 		if err := c.Prepare(); err != nil {
+			tw.BailOut(fmt.Sprintf("preparing corpus %s: %v", c.Name(), err))
 			return fmt.Errorf("preparing corpus %s: %w", c.Name(), err)
 		}
 
@@ -111,18 +127,23 @@ func RunIndex(ctx context.Context) error {
 				return err
 			}
 			if docErr != nil {
-				fmt.Fprintf(os.Stderr, "maneater: skipping document: %v\n", docErr)
+				tw.NotOk(fmt.Sprintf("%s/<unknown>", c.Name()),
+					map[string]string{"message": docErr.Error()})
 				continue
 			}
+
+			desc := fmt.Sprintf("%s/%s", c.Name(), doc.Key)
 
 			// Check if we can reuse the existing entry.
 			if cached, ok := existing[doc.Key]; ok && cached.Hash == doc.Hash {
 				entries = append(entries, cached)
 				reusedCount++
+				tw.Skip(desc, "reused from blob store")
 				continue
 			}
 
 			// Embed all text chunks for this document.
+			docOK := true
 			for _, text := range doc.Texts {
 				if err := ctx.Err(); err != nil {
 					return err
@@ -130,7 +151,11 @@ func RunIndex(ctx context.Context) error {
 				docText := modelCfg.DocumentPrefix + text
 				vec, embErr := emb.Embed(docText)
 				if embErr != nil {
-					fmt.Fprintf(os.Stderr, "maneater: skipping %s: %v\n", doc.Key, embErr)
+					tw.NotOk(desc, map[string]string{
+						"message": embErr.Error(),
+						"stage":   "embed",
+					})
+					docOK = false
 					continue
 				}
 				entries = append(entries, embedding.CachedEntry{
@@ -139,13 +164,10 @@ func RunIndex(ctx context.Context) error {
 					Embedding: vec,
 				})
 			}
-			embeddedCount++
-
-			total := reusedCount + embeddedCount
-			if total%100 == 0 {
-				fmt.Fprintf(os.Stderr, "maneater: [%s] processed %d documents (%d reused, %d embedded)\n",
-					c.Name(), total, reusedCount, embeddedCount)
+			if docOK {
+				tw.Ok(desc)
 			}
+			embeddedCount++
 		}
 
 		meta := embedding.IndexMeta{
@@ -156,25 +178,29 @@ func RunIndex(ctx context.Context) error {
 
 		blob, err := embedding.MarshalIndexBlob(meta, entries)
 		if err != nil {
+			tw.BailOut(fmt.Sprintf("serializing index blob for %s: %v", c.Name(), err))
 			return fmt.Errorf("serializing index blob for %s: %w", c.Name(), err)
 		}
 		digest, err := store.Write(ctx, blob)
 		if err != nil {
+			tw.BailOut(fmt.Sprintf("writing blob for %s: %v", c.Name(), err))
 			return fmt.Errorf("writing blob for %s: %w", c.Name(), err)
 		}
 		if err := manifest.Save(dataDir, manifest.IndexManifest{
 			BlobDigest: digest,
 			ConfigHash: cfgHash,
 		}); err != nil {
+			tw.BailOut(fmt.Sprintf("saving manifest for %s: %v", c.Name(), err))
 			return fmt.Errorf("saving manifest for %s: %w", c.Name(), err)
 		}
 		if err := embedding.SaveMeta(dataDir, meta); err != nil {
-			fmt.Fprintf(os.Stderr, "maneater: warning: could not save meta.json: %v\n", err)
+			tw.Comment(fmt.Sprintf("warning: could not save meta.json: %v", err))
 		}
 
-		fmt.Printf("Done: %s — %d entries (%d reused, %d embedded) blob %s\n",
-			c.Name(), len(entries), reusedCount, embeddedCount, digest)
+		tw.Comment(fmt.Sprintf("Done: %s — %d entries (%d reused, %d embedded) blob %s",
+			c.Name(), len(entries), reusedCount, embeddedCount, digest))
 	}
 
+	tw.Plan()
 	return nil
 }

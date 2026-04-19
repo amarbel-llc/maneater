@@ -6,7 +6,6 @@ import (
 	"bytes"
 	"context"
 	"fmt"
-	"os"
 	"os/exec"
 	"strings"
 )
@@ -74,15 +73,20 @@ func (s *Store) Exists(ctx context.Context) (bool, error) {
 	return false, nil
 }
 
-// Init runs `madder init <store-id>`, forwarding output to os.Stdout/Stderr.
-// The caller is responsible for handling the already-exists case (use Exists
-// first).
+// Init runs `madder init <store-id>`. Output is captured so the caller can
+// emit its own structured progress (e.g. TAP) without interleaving with
+// madder's own output. The caller is responsible for handling the
+// already-exists case (use Exists first).
 func (s *Store) Init(ctx context.Context) error {
 	cmd := exec.CommandContext(ctx, "madder", "init", s.StoreID)
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
+
+	var stdout, stderr bytes.Buffer
+	cmd.Stdout = &stdout
+	cmd.Stderr = &stderr
+
 	if err := cmd.Run(); err != nil {
-		return fmt.Errorf("madder init %s: %w", s.StoreID, err)
+		return fmt.Errorf("madder init %s: %w\nstdout: %s\nstderr: %s",
+			s.StoreID, err, stdout.String(), stderr.String())
 	}
 	return nil
 }
