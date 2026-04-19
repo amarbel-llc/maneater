@@ -95,8 +95,9 @@
           query-prefix = "query: "
           document-prefix = ""
 
-          [[corpora]]
-          type = "manpages"
+          # No [[corpora]] entries: maneater's synthesized default
+          # activates a `type = "command"` manpages corpus that shells
+          # out to maneater-man. See internal/charlie/commands.defaultManpagesCorpusConfig.
         '';
 
         maneater-unwrapped = pkgs.buildGoApplication {
