@@ -24,12 +24,15 @@ type ManeaterConfig struct {
 }
 
 type CorpusConfig struct {
-	Name     string   `toml:"name"`
-	Type     string   `toml:"type"` // "manpages", "files", or "command"
-	Paths    []string `toml:"paths"`
-	MaxChars int      `toml:"max-chars"`
-	ListCmd  []string `toml:"list-cmd"`
-	ReadCmd  []string `toml:"read-cmd"`
+	Name       string   `toml:"name"`
+	Type       string   `toml:"type"` // "files" or "command"
+	Paths      []string `toml:"paths"`
+	MaxChars   int      `toml:"max-chars"`
+	ListCmd    []string `toml:"list-cmd"`
+	ReadCmd    []string `toml:"read-cmd"`
+	HashCmd    []string `toml:"hash-cmd"`    // optional; per-key probe
+	PrepareCmd []string `toml:"prepare-cmd"` // optional; once during Prepare
+	Workers    int      `toml:"workers"`     // 0 or 1 = serial; >1 = worker pool
 }
 
 // ManpathConfig controls how maneater discovers man pages beyond the system
@@ -114,6 +117,18 @@ func DecodeCorpora(doc *ManeaterConfigDocument) []CorpusConfig {
 			case "read-cmd":
 				if v, ok := cst.ExtractStringSlice(kv); ok {
 					cc.ReadCmd = v
+				}
+			case "hash-cmd":
+				if v, ok := cst.ExtractStringSlice(kv); ok {
+					cc.HashCmd = v
+				}
+			case "prepare-cmd":
+				if v, ok := cst.ExtractStringSlice(kv); ok {
+					cc.PrepareCmd = v
+				}
+			case "workers":
+				if v, ok := cst.ExtractInt(kv); ok {
+					cc.Workers = v
 				}
 			}
 		}

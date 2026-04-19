@@ -19,7 +19,7 @@ func TestFilesCorpusDocumentsHaveHash(t *testing.T) {
 		Patterns:   []string{filepath.Join(dir, "*.txt")},
 	}
 
-	for doc, err := range c.Documents() {
+	for doc, err := range c.Documents(nil) {
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
@@ -45,7 +45,7 @@ func TestFilesCorpusHashDeterministic(t *testing.T) {
 
 	var hashes []string
 	for i := 0; i < 2; i++ {
-		for doc, err := range c.Documents() {
+		for doc, err := range c.Documents(nil) {
 			if err != nil {
 				t.Fatal(err)
 			}

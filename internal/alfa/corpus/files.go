@@ -21,7 +21,9 @@ func (c *FilesCorpus) Name() string { return c.CorpusName }
 
 func (c *FilesCorpus) Prepare() error { return nil }
 
-func (c *FilesCorpus) Documents() iter.Seq2[Document, error] {
+// Documents ignores prev — FilesCorpus has no cheap hash probe. Incremental
+// reuse still works via post-hoc hash comparison in the index loop.
+func (c *FilesCorpus) Documents(_ map[string]string) iter.Seq2[Document, error] {
 	return func(yield func(Document, error) bool) {
 		maxChars := c.MaxChars
 		if maxChars <= 0 {

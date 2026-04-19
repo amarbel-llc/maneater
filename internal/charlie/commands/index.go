@@ -60,8 +60,8 @@ func RunIndex(ctx context.Context) error {
 		return err
 	}
 
-	for _, c := range corpora {
-		if cmdc, ok := c.(*corpus.CommandCorpus); ok {
+	for _, rc := range corpora {
+		if cmdc, ok := rc.Corpus.(*corpus.CommandCorpus); ok {
 			cmdc.Ctx = ctx
 		}
 	}
@@ -89,12 +89,13 @@ func RunIndex(ctx context.Context) error {
 	}
 	defer emb.Close()
 
-	for _, c := range corpora {
+	for _, rc := range corpora {
 		if err := ctx.Err(); err != nil {
 			return err
 		}
 
-		cc := corpusConfigForCorpus(c, cfg)
+		c := rc.Corpus
+		cc := rc.Config
 		cfgHash := config.Hash(modelCfg, cc)
 		dataDir := indexDataDir(c.Name(), cfgHash)
 
@@ -119,10 +120,20 @@ func RunIndex(ctx context.Context) error {
 			return fmt.Errorf("preparing corpus %s: %w", c.Name(), err)
 		}
 
+		// Build the prev map from existing entries so corpora with HashCmd
+		// can short-circuit ReadCmd when the hash is unchanged.
+		var prev map[string]string
+		if !force && len(existing) > 0 {
+			prev = make(map[string]string, len(existing))
+			for key, e := range existing {
+				prev[key] = e.Hash
+			}
+		}
+
 		var entries []embedding.CachedEntry
 		var reusedCount, embeddedCount int
 
-		for doc, docErr := range c.Documents() {
+		for doc, docErr := range c.Documents(prev) {
 			if err := ctx.Err(); err != nil {
 				return err
 			}
@@ -134,7 +145,19 @@ func RunIndex(ctx context.Context) error {
 
 			desc := fmt.Sprintf("%s/%s", c.Name(), doc.Key)
 
-			// Check if we can reuse the existing entry.
+			// Corpus-signaled reuse: HashCmd matched prev, no Texts sent.
+			if doc.Texts == nil {
+				if cached, ok := existing[doc.Key]; ok {
+					entries = append(entries, cached)
+					reusedCount++
+					tw.Skip(desc, "reused (hash-cmd match)")
+					continue
+				}
+				tw.Comment(fmt.Sprintf("warning: corpus signaled reuse for %s but no cached entry; skipping", doc.Key))
+				continue
+			}
+
+			// Post-hoc reuse: hash matched what we already had.
 			if cached, ok := existing[doc.Key]; ok && cached.Hash == doc.Hash {
 				entries = append(entries, cached)
 				reusedCount++

@@ -1,6 +1,7 @@
 package corpus_test
 
 import (
+	"os"
 	"testing"
 
 	"github.com/amarbel-llc/maneater/internal/0/config"
@@ -9,9 +10,14 @@ import (
 
 func collectDocuments(t *testing.T, c corpus.Corpus) ([]corpus.Document, []error) {
 	t.Helper()
+	return collectWithPrev(t, c, nil)
+}
+
+func collectWithPrev(t *testing.T, c corpus.Corpus, prev map[string]string) ([]corpus.Document, []error) {
+	t.Helper()
 	var docs []corpus.Document
 	var errs []error
-	for doc, err := range c.Documents() {
+	for doc, err := range c.Documents(prev) {
 		if err != nil {
 			errs = append(errs, err)
 			continue
@@ -169,6 +175,131 @@ func TestFromConfigCommand(t *testing.T) {
 	}
 	if c.Name() != "test" {
 		t.Errorf("Name() = %q, want test", c.Name())
+	}
+}
+
+func TestCommandCorpusHashCmdReuse(t *testing.T) {
+	// hash-cmd outputs "fixed-hash" for any key. If prev matches, Texts should be nil.
+	c := &corpus.CommandCorpus{
+		CorpusName: "hash-reuse",
+		ListCmd:    []string{"printf", "k1\nk2\n"},
+		ReadCmd:    []string{"sh", "-c", "echo should-not-run"},
+		HashCmd:    []string{"sh", "-c", "printf fixed-hash"},
+	}
+	prev := map[string]string{"k1": "fixed-hash", "k2": "fixed-hash"}
+	docs, errs := collectWithPrev(t, c, prev)
+	if len(errs) > 0 {
+		t.Fatalf("unexpected errors: %v", errs)
+	}
+	if len(docs) != 2 {
+		t.Fatalf("got %d documents, want 2", len(docs))
+	}
+	for i, doc := range docs {
+		if doc.Texts != nil {
+			t.Errorf("docs[%d].Texts = %v, want nil (reuse sentinel)", i, doc.Texts)
+		}
+		if doc.Hash != "fixed-hash" {
+			t.Errorf("docs[%d].Hash = %q, want fixed-hash", i, doc.Hash)
+		}
+	}
+}
+
+func TestCommandCorpusHashCmdMismatchRunsReadCmd(t *testing.T) {
+	// hash-cmd outputs a fresh hash per key; prev has a stale one. ReadCmd must run.
+	c := &corpus.CommandCorpus{
+		CorpusName: "hash-miss",
+		ListCmd:    []string{"printf", "k1\n"},
+		ReadCmd:    []string{"echo", "fresh text for"},
+		HashCmd:    []string{"sh", "-c", "printf new-hash"},
+	}
+	prev := map[string]string{"k1": "old-hash"}
+	docs, errs := collectWithPrev(t, c, prev)
+	if len(errs) > 0 {
+		t.Fatalf("unexpected errors: %v", errs)
+	}
+	if len(docs) != 1 {
+		t.Fatalf("got %d documents, want 1", len(docs))
+	}
+	if docs[0].Texts == nil {
+		t.Errorf("expected Texts to be populated (read-cmd ran), got nil")
+	}
+	if len(docs[0].Texts) == 0 || docs[0].Texts[0] != "fresh text for k1" {
+		t.Errorf("docs[0].Texts = %v, want [\"fresh text for k1\"]", docs[0].Texts)
+	}
+}
+
+func TestCommandCorpusWorkersPreservesOrder(t *testing.T) {
+	// With 4 workers and 8 keys whose read-cmd sleeps for a key-dependent time,
+	// results must still arrive in list order.
+	c := &corpus.CommandCorpus{
+		CorpusName: "parallel",
+		ListCmd:    []string{"printf", "k1\nk2\nk3\nk4\nk5\nk6\nk7\nk8\n"},
+		// Key encodes its sleep: k1 sleeps longer than k8, so parallel
+		// completion order differs from input order, forcing the reorder buffer.
+		ReadCmd: []string{"sh", "-c", `
+key=$1
+case $key in
+  k1) sleep 0.05 ;;
+  k2) sleep 0.04 ;;
+  k3) sleep 0.03 ;;
+  k4) sleep 0.02 ;;
+  k5) sleep 0.01 ;;
+esac
+echo "text-for-$key"
+`, "--"},
+		Workers: 4,
+	}
+	docs, errs := collectDocuments(t, c)
+	if len(errs) > 0 {
+		t.Fatalf("unexpected errors: %v", errs)
+	}
+	if len(docs) != 8 {
+		t.Fatalf("got %d documents, want 8", len(docs))
+	}
+	for i, want := range []string{"k1", "k2", "k3", "k4", "k5", "k6", "k7", "k8"} {
+		if docs[i].Key != want {
+			t.Errorf("docs[%d].Key = %q, want %q (order not preserved)", i, docs[i].Key, want)
+		}
+	}
+}
+
+func TestCommandCorpusNULSplitTexts(t *testing.T) {
+	// read-cmd outputs NUL-separated chunks; the corpus should split them into
+	// distinct Texts entries.
+	c := &corpus.CommandCorpus{
+		CorpusName: "chunks",
+		ListCmd:    []string{"echo", "k"},
+		ReadCmd:    []string{"sh", "-c", `printf 'first\0second\0'`, "--"},
+		MaxChars:   1000,
+	}
+	docs, errs := collectDocuments(t, c)
+	if len(errs) > 0 {
+		t.Fatalf("unexpected errors: %v", errs)
+	}
+	if len(docs) != 1 {
+		t.Fatalf("got %d documents, want 1", len(docs))
+	}
+	if len(docs[0].Texts) != 2 {
+		t.Fatalf("got %d chunks, want 2: %v", len(docs[0].Texts), docs[0].Texts)
+	}
+	if docs[0].Texts[0] != "first" || docs[0].Texts[1] != "second" {
+		t.Errorf("chunks = %v, want [first second]", docs[0].Texts)
+	}
+}
+
+func TestCommandCorpusPrepareCmdRuns(t *testing.T) {
+	marker := t.TempDir() + "/prepared"
+	c := &corpus.CommandCorpus{
+		CorpusName: "prep",
+		PrepareCmd: []string{"touch", marker},
+		ListCmd:    []string{"echo", "k"},
+		ReadCmd:    []string{"echo", "t"},
+	}
+	if err := c.Prepare(); err != nil {
+		t.Fatalf("Prepare: %v", err)
+	}
+	if _, err := os.Stat(marker); err != nil {
+		t.Fatalf("prepare-cmd did not create marker: %v", err)
 	}
 }
 

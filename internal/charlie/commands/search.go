@@ -25,7 +25,7 @@ type searcher struct {
 	modelName string
 	modelCfg  config.ModelConfig
 	manpath   []string
-	corpora   []corpus.Corpus
+	corpora   []resolvedCorpus
 }
 
 // RunSearch parses args ("<query words...> [--top-k N]"), loads the index,
@@ -72,8 +72,8 @@ func RunSearch(ctx context.Context, args []string) error {
 		return err
 	}
 
-	for _, c := range corpora {
-		if cmdc, ok := c.(*corpus.CommandCorpus); ok {
+	for _, rc := range corpora {
+		if cmdc, ok := rc.Corpus.(*corpus.CommandCorpus); ok {
 			cmdc.Ctx = ctx
 		}
 	}
@@ -159,13 +159,13 @@ func (s *searcher) loadOrBuildIndex() (*embedding.Index, error) {
 
 	var combined *embedding.Index
 
-	for _, c := range s.corpora {
+	for _, rc := range s.corpora {
 		if err := s.ctx.Err(); err != nil {
 			return nil, err
 		}
 
-		cc := corpusConfigForCorpus(c, s.cfg)
-		cfgHash := config.Hash(s.modelCfg, cc)
+		c := rc.Corpus
+		cfgHash := config.Hash(s.modelCfg, rc.Config)
 		dataDir := indexDataDir(c.Name(), cfgHash)
 
 		man, err := manifest.Load(dataDir)
