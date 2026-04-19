@@ -10,6 +10,8 @@ import (
 	"os/exec"
 	"strings"
 	"sync"
+
+	"github.com/amarbel-llc/maneater/internal/0/execx"
 )
 
 // CommandCorpus indexes documents via a pair-or-quartet of external commands.
@@ -216,7 +218,7 @@ func (c *CommandCorpus) processKey(
 ) (Document, error) {
 	// HashCmd fast-path: if the hash matches prev, signal reuse and skip ReadCmd.
 	if len(c.HashCmd) > 0 && prev != nil {
-		hashOut, err := runCmd(ctx, appendArg(c.HashCmd, key))
+		hashOut, err := runCmd(ctx, execx.AppendArg(c.HashCmd, key))
 		if err != nil {
 			return Document{}, fmt.Errorf("hash-cmd %s: %w", key, err)
 		}
@@ -228,7 +230,7 @@ func (c *CommandCorpus) processKey(
 		}
 	}
 
-	text, err := runCmd(ctx, appendArg(c.ReadCmd, key))
+	text, err := runCmd(ctx, execx.AppendArg(c.ReadCmd, key))
 	if err != nil {
 		return Document{}, fmt.Errorf("read-cmd %s: %w", key, err)
 	}
@@ -247,16 +249,6 @@ func (c *CommandCorpus) processKey(
 	}
 
 	return Document{Key: key, Hash: hashHex, Texts: chunks}, nil
-}
-
-// appendArg returns base + [arg]. Safe for concurrent callers because it
-// always allocates a new slice (avoids the aliasing bug of `append(s, x)`
-// when s has spare cap).
-func appendArg(base []string, arg string) []string {
-	out := make([]string, 0, len(base)+1)
-	out = append(out, base...)
-	out = append(out, arg)
-	return out
 }
 
 // splitKeys parses newline-separated stdout into a list of non-empty keys.

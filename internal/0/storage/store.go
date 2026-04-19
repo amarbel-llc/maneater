@@ -1,17 +1,20 @@
-// Package storage defines the content-addressed blob-store contract that
-// maneater uses to persist and retrieve index blobs, plus a CommandStore
-// implementation that shells out to user-configured read/write/exists/init
-// commands. The default implementation lives in internal/0/madder and
-// satisfies the same Store interface.
+// Package storage defines the blob-store contract that maneater uses to
+// persist and retrieve index blobs, plus a CommandStore implementation
+// that shells out to user-configured read/write/exists/init commands.
+// The default implementation lives in internal/0/madder and satisfies
+// the same Store interface. The contract does not itself enforce
+// content-addressing — that's a property of the backend the user wires
+// up (madder is content-addressed; a CommandStore pointing at arbitrary
+// scripts may not be).
 //
 // Contract (see maneater.toml.5 for the TOML surface):
 //
 //   - read-cmd <digest> → stdout: raw blob bytes; exit != 0 → not found / error.
 //   - write-cmd (data on stdin) → stdout: digest of the written blob. The
-//     digest is parsed via parseDigestFromOutput — last "ok N - <digest>"
-//     token (TAP-style) or the first whitespace-delimited token on the last
-//     non-empty line. Fits madder, aws s3 + a sidecar, and most
-//     content-addressable stores.
+//     digest is parsed via madder.ParseDigestFromOutput — last
+//     "ok N - <digest>" token (TAP-style) or the first whitespace-delimited
+//     token on the last non-empty line. Fits madder, aws s3 + a sidecar,
+//     and most content-addressable stores.
 //   - exists-cmd (optional) → stdout contains a line matching "<store-id>:"
 //     or similar; exit != 0 → not exists. If unset, the store is treated
 //     as existing (skips fast-fail).
@@ -27,11 +30,12 @@ import (
 	"strings"
 
 	"github.com/amarbel-llc/maneater/internal/0/config"
+	"github.com/amarbel-llc/maneater/internal/0/execx"
 	"github.com/amarbel-llc/maneater/internal/0/madder"
 )
 
-// Store is the content-addressed blob storage interface the maneater
-// index/search lifecycle calls into.
+// Store is the blob storage interface the maneater index/search
+// lifecycle calls into.
 type Store interface {
 	Read(ctx context.Context, digest string) ([]byte, error)
 	Write(ctx context.Context, data []byte) (string, error)
@@ -78,7 +82,7 @@ func (s *CommandStore) Read(ctx context.Context, digest string) ([]byte, error) 
 	if len(s.ReadCmd) == 0 {
 		return nil, fmt.Errorf("storage: read-cmd not configured")
 	}
-	argv := appendArg(s.ReadCmd, digest)
+	argv := execx.AppendArg(s.ReadCmd, digest)
 	cmd := exec.CommandContext(ctx, argv[0], argv[1:]...)
 
 	var stdout, stderr bytes.Buffer
@@ -93,7 +97,7 @@ func (s *CommandStore) Read(ctx context.Context, digest string) ([]byte, error) 
 }
 
 // Write runs WriteCmd with the blob on stdin. Stdout is parsed for the
-// resulting digest via parseDigestFromOutput (shared with madder).
+// resulting digest via madder.ParseDigestFromOutput (shared with madder).
 func (s *CommandStore) Write(ctx context.Context, data []byte) (string, error) {
 	if len(s.WriteCmd) == 0 {
 		return "", fmt.Errorf("storage: write-cmd not configured")
@@ -164,13 +168,4 @@ func (s *CommandStore) Init(ctx context.Context) error {
 			s.InitCmd[0], err, stdout.String(), stderr.String())
 	}
 	return nil
-}
-
-// appendArg returns base + [arg]. Always allocates a new slice so
-// concurrent callers don't alias a shared backing array.
-func appendArg(base []string, arg string) []string {
-	out := make([]string, 0, len(base)+1)
-	out = append(out, base...)
-	out = append(out, arg)
-	return out
 }

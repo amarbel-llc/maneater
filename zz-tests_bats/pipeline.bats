@@ -118,7 +118,7 @@ function custom_storage_init_creates_dir { # @test
 
   run_maneater init-store
   assert_success
-  [[ -d "$BLOBS" ]] || fail "init-cmd did not create $BLOBS"
+  [[ -d $BLOBS ]] || fail "init-cmd did not create $BLOBS"
 }
 
 function custom_storage_index_round_trips_via_commands { # @test
@@ -133,7 +133,7 @@ function custom_storage_index_round_trips_via_commands { # @test
   # At least one blob file should now live under $BLOBS.
   local count
   count=$(find "$BLOBS" -type f | wc -l)
-  [[ "$count" -ge 1 ]] || fail "expected >=1 blob in $BLOBS, got $count"
+  [[ $count -ge 1 ]] || fail "expected >=1 blob in $BLOBS, got $count"
 
   # Re-running should use the post-hoc incremental path via read-cmd.
   run_maneater index
