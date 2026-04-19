@@ -5,7 +5,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/amarbel-llc/maneater/internal/corpus"
+	"github.com/amarbel-llc/maneater/internal/alfa/corpus"
 )
 
 func TestFilesCorpusDocumentsHaveHash(t *testing.T) {

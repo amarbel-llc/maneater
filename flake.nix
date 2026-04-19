@@ -30,6 +30,13 @@
       inputs.nixpkgs.follows = "nixpkgs";
       inputs.utils.follows = "utils";
     };
+
+    purse-first = {
+      url = "github:amarbel-llc/purse-first";
+      inputs.nixpkgs.follows = "nixpkgs";
+      inputs.nixpkgs-master.follows = "nixpkgs-master";
+      inputs.utils.follows = "utils";
+    };
   };
 
   outputs =
@@ -42,6 +49,7 @@
       tommy,
       bob,
       madder,
+      purse-first,
     }:
     utils.lib.eachDefaultSystem (
       system:
@@ -148,6 +156,7 @@
             tommy.packages.${system}.default
             madder.packages.${system}.default
             bob.packages.${system}.batman
+            purse-first.packages.${system}.dagnabit
           ];
           MANEATER_TEST_CONFIG = maneater-test-toml;
         };

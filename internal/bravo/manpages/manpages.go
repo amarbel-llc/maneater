@@ -7,8 +7,8 @@ import (
 	"iter"
 	"sync"
 
-	"github.com/amarbel-llc/maneater/internal/corpus"
-	"github.com/amarbel-llc/maneater/internal/manpath"
+	"github.com/amarbel-llc/maneater/internal/0/manpath"
+	"github.com/amarbel-llc/maneater/internal/alfa/corpus"
 )
 
 // Corpus is the manpages Corpus implementation. Construct with New.

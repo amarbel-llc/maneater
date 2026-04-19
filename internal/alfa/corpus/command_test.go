@@ -3,8 +3,8 @@ package corpus_test
 import (
 	"testing"
 
-	"github.com/amarbel-llc/maneater/internal/config"
-	"github.com/amarbel-llc/maneater/internal/corpus"
+	"github.com/amarbel-llc/maneater/internal/0/config"
+	"github.com/amarbel-llc/maneater/internal/alfa/corpus"
 )
 
 func collectDocuments(t *testing.T, c corpus.Corpus) ([]corpus.Document, []error) {

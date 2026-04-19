@@ -6,8 +6,8 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/amarbel-llc/maneater/internal/config"
-	"github.com/amarbel-llc/maneater/internal/embedding"
+	"github.com/amarbel-llc/maneater/internal/0/config"
+	"github.com/amarbel-llc/maneater/internal/0/embedding"
 )
 
 func TestConfigHash(t *testing.T) {

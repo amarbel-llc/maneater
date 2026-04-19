@@ -4,8 +4,8 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/amarbel-llc/maneater/internal/config"
-	"github.com/amarbel-llc/maneater/internal/madder"
+	"github.com/amarbel-llc/maneater/internal/0/config"
+	"github.com/amarbel-llc/maneater/internal/0/madder"
 )
 
 // RunInitStore initializes the madder store whose ID is in cfg.Storage.StoreID

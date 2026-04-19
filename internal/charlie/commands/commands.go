@@ -8,10 +8,10 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/amarbel-llc/maneater/internal/config"
-	"github.com/amarbel-llc/maneater/internal/corpus"
-	"github.com/amarbel-llc/maneater/internal/manpages"
-	"github.com/amarbel-llc/maneater/internal/manpath"
+	"github.com/amarbel-llc/maneater/internal/0/config"
+	"github.com/amarbel-llc/maneater/internal/0/manpath"
+	"github.com/amarbel-llc/maneater/internal/alfa/corpus"
+	"github.com/amarbel-llc/maneater/internal/bravo/manpages"
 )
 
 // indexDataDir returns the per-corpus on-disk cache path that holds the

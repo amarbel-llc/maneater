@@ -5,7 +5,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/amarbel-llc/maneater/internal/manpath"
+	"github.com/amarbel-llc/maneater/internal/0/manpath"
 )
 
 func TestResolveHeuristicProbesExistingDirs(t *testing.T) {
