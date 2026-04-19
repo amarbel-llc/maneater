@@ -10,8 +10,8 @@ import (
 
 	"github.com/amarbel-llc/maneater/internal/0/config"
 	"github.com/amarbel-llc/maneater/internal/0/embedding"
-	"github.com/amarbel-llc/maneater/internal/0/madder"
 	"github.com/amarbel-llc/maneater/internal/0/manifest"
+	"github.com/amarbel-llc/maneater/internal/0/storage"
 	"github.com/amarbel-llc/maneater/internal/alfa/corpus"
 )
 
@@ -155,7 +155,7 @@ func (s *searcher) ensureSearchReady() error {
 
 func (s *searcher) loadOrBuildIndex() (*embedding.Index, error) {
 	sc := config.ResolveStorage(s.cfg)
-	store := &madder.Store{StoreID: sc.StoreID}
+	store := storage.FromConfig(sc)
 
 	var combined *embedding.Index
 

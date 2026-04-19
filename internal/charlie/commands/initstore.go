@@ -7,12 +7,13 @@ import (
 
 	tap "github.com/amarbel-llc/bob/packages/tap-dancer/go"
 	"github.com/amarbel-llc/maneater/internal/0/config"
-	"github.com/amarbel-llc/maneater/internal/0/madder"
+	"github.com/amarbel-llc/maneater/internal/0/storage"
 )
 
-// RunInitStore initializes the madder store whose ID is in cfg.Storage.StoreID
-// (or "maneater" by default). Safe to call repeatedly — a no-op if the store
-// already exists. Emits TAP-14 output.
+// RunInitStore initializes the configured blob store (madder by default;
+// any backend configured via [storage] read/write/exists/init-cmd).
+// Safe to call repeatedly — a no-op if the store already exists.
+// Emits TAP-14 output.
 func RunInitStore(ctx context.Context) error {
 	tw := tap.NewWriter(os.Stdout)
 
@@ -23,7 +24,7 @@ func RunInitStore(ctx context.Context) error {
 	}
 
 	sc := config.ResolveStorage(cfg)
-	store := &madder.Store{StoreID: sc.StoreID}
+	store := storage.FromConfig(sc)
 
 	exists, err := store.Exists(ctx)
 	if err != nil {
@@ -31,7 +32,7 @@ func RunInitStore(ctx context.Context) error {
 		return err
 	}
 	if exists {
-		tw.Skip(fmt.Sprintf("madder store %q", store.StoreID), "already exists")
+		tw.Skip(fmt.Sprintf("blob store %q", sc.StoreID), "already exists")
 		tw.Plan()
 		return nil
 	}
@@ -40,7 +41,7 @@ func RunInitStore(ctx context.Context) error {
 		tw.BailOut(err.Error())
 		return err
 	}
-	tw.Ok(fmt.Sprintf("initialized madder store %q", store.StoreID))
+	tw.Ok(fmt.Sprintf("initialized blob store %q", sc.StoreID))
 	tw.Plan()
 	return nil
 }

@@ -169,6 +169,26 @@ func DecodeManeaterConfig(input []byte) (*ManeaterConfigDocument, error) {
 						storageVal.StoreID = v
 						d.consumed["storage.store-id"] = true
 					}
+				case "read-cmd":
+					if v, ok := cst.ExtractStringSlice(_kv); ok {
+						storageVal.ReadCmd = v
+						d.consumed["storage.read-cmd"] = true
+					}
+				case "write-cmd":
+					if v, ok := cst.ExtractStringSlice(_kv); ok {
+						storageVal.WriteCmd = v
+						d.consumed["storage.write-cmd"] = true
+					}
+				case "exists-cmd":
+					if v, ok := cst.ExtractStringSlice(_kv); ok {
+						storageVal.ExistsCmd = v
+						d.consumed["storage.exists-cmd"] = true
+					}
+				case "init-cmd":
+					if v, ok := cst.ExtractStringSlice(_kv); ok {
+						storageVal.InitCmd = v
+						d.consumed["storage.init-cmd"] = true
+					}
 				}
 			}
 			d.data.Storage = storageVal
@@ -185,6 +205,26 @@ func DecodeManeaterConfig(input []byte) (*ManeaterConfigDocument, error) {
 						storageVal.StoreID = v
 						_found = true
 						d.consumed["store-id"] = true
+					}
+				case "read-cmd":
+					if v, ok := cst.ExtractStringSlice(_kv); ok {
+						storageVal.ReadCmd = v
+						d.consumed["read-cmd"] = true
+					}
+				case "write-cmd":
+					if v, ok := cst.ExtractStringSlice(_kv); ok {
+						storageVal.WriteCmd = v
+						d.consumed["write-cmd"] = true
+					}
+				case "exists-cmd":
+					if v, ok := cst.ExtractStringSlice(_kv); ok {
+						storageVal.ExistsCmd = v
+						d.consumed["exists-cmd"] = true
+					}
+				case "init-cmd":
+					if v, ok := cst.ExtractStringSlice(_kv); ok {
+						storageVal.InitCmd = v
+						d.consumed["init-cmd"] = true
 					}
 				}
 			}
@@ -241,6 +281,26 @@ func (d *ManeaterConfigDocument) Encode() ([]byte, error) {
 		tableNode := cst.EnsureChildTable(d.cstDoc.Root(), d.cstDoc.Root(), "storage")
 		if d.data.Storage.StoreID != "" || cst.HasValue(tableNode, "store-id") {
 			if err := cst.SetAny(tableNode, "store-id", d.data.Storage.StoreID); err != nil {
+				return nil, fmt.Errorf("%w", err)
+			}
+		}
+		{
+			if err := cst.SetAny(tableNode, "read-cmd", d.data.Storage.ReadCmd); err != nil {
+				return nil, fmt.Errorf("%w", err)
+			}
+		}
+		{
+			if err := cst.SetAny(tableNode, "write-cmd", d.data.Storage.WriteCmd); err != nil {
+				return nil, fmt.Errorf("%w", err)
+			}
+		}
+		{
+			if err := cst.SetAny(tableNode, "exists-cmd", d.data.Storage.ExistsCmd); err != nil {
+				return nil, fmt.Errorf("%w", err)
+			}
+		}
+		{
+			if err := cst.SetAny(tableNode, "init-cmd", d.data.Storage.InitCmd); err != nil {
 				return nil, fmt.Errorf("%w", err)
 			}
 		}
@@ -399,6 +459,26 @@ func DecodeManeaterConfigInto(data *ManeaterConfig, doc *document.Document, cont
 						storageVal.StoreID = v
 						consumed[keyPrefix+"storage.store-id"] = true
 					}
+				case "read-cmd":
+					if v, ok := cst.ExtractStringSlice(_kv); ok {
+						storageVal.ReadCmd = v
+						consumed[keyPrefix+"storage.read-cmd"] = true
+					}
+				case "write-cmd":
+					if v, ok := cst.ExtractStringSlice(_kv); ok {
+						storageVal.WriteCmd = v
+						consumed[keyPrefix+"storage.write-cmd"] = true
+					}
+				case "exists-cmd":
+					if v, ok := cst.ExtractStringSlice(_kv); ok {
+						storageVal.ExistsCmd = v
+						consumed[keyPrefix+"storage.exists-cmd"] = true
+					}
+				case "init-cmd":
+					if v, ok := cst.ExtractStringSlice(_kv); ok {
+						storageVal.InitCmd = v
+						consumed[keyPrefix+"storage.init-cmd"] = true
+					}
 				}
 			}
 			data.Storage = storageVal
@@ -415,6 +495,26 @@ func DecodeManeaterConfigInto(data *ManeaterConfig, doc *document.Document, cont
 						storageVal.StoreID = v
 						_found = true
 						consumed["store-id"] = true
+					}
+				case "read-cmd":
+					if v, ok := cst.ExtractStringSlice(_kv); ok {
+						storageVal.ReadCmd = v
+						consumed["read-cmd"] = true
+					}
+				case "write-cmd":
+					if v, ok := cst.ExtractStringSlice(_kv); ok {
+						storageVal.WriteCmd = v
+						consumed["write-cmd"] = true
+					}
+				case "exists-cmd":
+					if v, ok := cst.ExtractStringSlice(_kv); ok {
+						storageVal.ExistsCmd = v
+						consumed["exists-cmd"] = true
+					}
+				case "init-cmd":
+					if v, ok := cst.ExtractStringSlice(_kv); ok {
+						storageVal.InitCmd = v
+						consumed["init-cmd"] = true
 					}
 				}
 			}
@@ -468,6 +568,26 @@ func EncodeManeaterConfigFrom(data *ManeaterConfig, doc *document.Document, cont
 		tableNode := cst.EnsureChildTable(doc.Root(), container, "storage")
 		if data.Storage.StoreID != "" || cst.HasValue(tableNode, "store-id") {
 			if err := cst.SetAny(tableNode, "store-id", data.Storage.StoreID); err != nil {
+				return fmt.Errorf("%w", err)
+			}
+		}
+		{
+			if err := cst.SetAny(tableNode, "read-cmd", data.Storage.ReadCmd); err != nil {
+				return fmt.Errorf("%w", err)
+			}
+		}
+		{
+			if err := cst.SetAny(tableNode, "write-cmd", data.Storage.WriteCmd); err != nil {
+				return fmt.Errorf("%w", err)
+			}
+		}
+		{
+			if err := cst.SetAny(tableNode, "exists-cmd", data.Storage.ExistsCmd); err != nil {
+				return fmt.Errorf("%w", err)
+			}
+		}
+		{
+			if err := cst.SetAny(tableNode, "init-cmd", data.Storage.InitCmd); err != nil {
 				return fmt.Errorf("%w", err)
 			}
 		}

@@ -8,8 +8,8 @@ import (
 	tap "github.com/amarbel-llc/bob/packages/tap-dancer/go"
 	"github.com/amarbel-llc/maneater/internal/0/config"
 	"github.com/amarbel-llc/maneater/internal/0/embedding"
-	"github.com/amarbel-llc/maneater/internal/0/madder"
 	"github.com/amarbel-llc/maneater/internal/0/manifest"
+	"github.com/amarbel-llc/maneater/internal/0/storage"
 	"github.com/amarbel-llc/maneater/internal/alfa/corpus"
 )
 
@@ -67,15 +67,15 @@ func RunIndex(ctx context.Context) error {
 	}
 
 	sc := config.ResolveStorage(cfg)
-	store := &madder.Store{StoreID: sc.StoreID}
+	store := storage.FromConfig(sc)
 
 	exists, err := store.Exists(ctx)
 	if err != nil {
-		tw.BailOut(fmt.Sprintf("madder list: %v", err))
+		tw.BailOut(fmt.Sprintf("storage exists check: %v", err))
 		return err
 	}
 	if !exists {
-		msg := fmt.Sprintf("madder store %q is not initialized — run 'maneater init-store' first", store.StoreID)
+		msg := fmt.Sprintf("blob store %q is not initialized — run 'maneater init-store' first", sc.StoreID)
 		tw.BailOut(msg)
 		return fmt.Errorf("%s", msg)
 	}

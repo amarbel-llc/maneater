@@ -240,11 +240,10 @@ read-cmd = ["wiki-tool", "read"]
 .Sh STORAGE
 The
 .Va storage
-table configures the
-.Xr madder 1
-store used to persist indexes.
-The store is the sole storage for index entries; it must be
-initialized before indexing or searching.
+table configures the content-addressed blob store used to persist index
+blobs.
+The store is the sole storage for index entries; it must be initialized
+before indexing or searching.
 See
 .Xr maneater 1
 .Sx BLOB STORAGE
@@ -252,33 +251,92 @@ for an overview.
 .Pp
 When no
 .Va [storage]
-section is present, maneater uses
+section is present (or only
+.Va store-id
+is set), maneater uses
 .Xr madder 1
-with store ID
-.Dq maneater :
+as the default backend:
 .Bd -literal -offset indent
 [storage]
 store-id = "maneater"
 .Ed
-.Bl -tag -width "store-id"
+.Bl -tag -width "exists-cmd"
 .It Va store-id
-Identifier of the
+Identifier passed to the backend.
+For the
 .Xr madder 1
-store.
-Used by
+default, also used as the store name by
 .Cm init-store
-to create the store and by
-.Cm index
-to write blobs.
+and
+.Cm index .
 Default:
 .Dq maneater .
+.It Va read-cmd
+Optional.
+Command array whose invocation receives the blob digest as the final
+positional argument.
+Stdout is the raw blob.
+Non-zero exit is treated as "blob not found or error".
+Setting this (or
+.Va write-cmd )
+switches maneater off the builtin madder backend.
+.It Va write-cmd
+Optional.
+Command array that reads a blob from stdin and writes a digest
+identifying it to stdout.
+The digest is parsed from the last TAP
+.Dq ok N \- <digest>
+line, or, failing that, the first whitespace-delimited token on the
+last non-empty line.
+.It Va exists-cmd
+Optional.
+Command array whose exit status reports whether the configured store
+exists.
+Non-zero exit is treated as
+.Dq not exists
+(maneater
+.Cm index
+fails fast with a pointer to
+.Cm init-store ).
+When
+.Va exists-cmd
+is unset, the store is assumed to exist and the fast-fail check is
+skipped.
+Lines in stdout may have the form
+.Dq <name>: <type>
+(same shape as
+.Xr madder 1 Ql list ),
+in which case maneater looks for a line whose name token matches
+.Va store-id .
+.It Va init-cmd
+Optional.
+Command array run by
+.Cm init-store
+to create the backing store.
+Unset means initialization is a no-op.
 .El
 .Pp
-To use a non-default madder store:
+A non-default madder store (same builtin backend, different store ID):
 .Bd -literal -offset indent
 [storage]
 store-id = "my-index-store"
 .Ed
+.Pp
+A generic command-based backend \(em here, a filesystem tree keyed by
+SHA-256:
+.Bd -literal -offset indent
+[storage]
+store-id = "local-sha256"
+read-cmd  = ["sh", "-c", "cat \(dq$BLOBS/$1\(dq", "--"]
+write-cmd = ["sh", "-c", "d=$(mktemp -p \(dq$BLOBS\(dq .in.XXXXXX); cat >\(dq$d\(dq; h=$(sha256sum \(dq$d\(dq|awk '{print $1}'); mv \(dq$d\(dq \(dq$BLOBS/$h\(dq; echo $h", "--"]
+exists-cmd = ["sh", "-c", "test -d \(dq$BLOBS\(dq && echo \(dq$1: local fs\(dq", "--", "local-sha256"]
+init-cmd   = ["sh", "-c", "mkdir -p \(dq$BLOBS\(dq"]
+.Ed
+.Pp
+(Requires
+.Ev BLOBS
+to be set in the environment before invocation; any command array works
+\(em madder, curl wrappers, aws-cli shims, etc.)
 .Sh EXAMPLES
 Minimal configuration with a single model (no
 .Va default

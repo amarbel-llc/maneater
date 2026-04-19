@@ -46,7 +46,7 @@ func (s *Store) Write(ctx context.Context, data []byte) (string, error) {
 		return "", fmt.Errorf("madder write %s: %w\nstderr: %s", s.StoreID, err, stderr.String())
 	}
 
-	digest, err := parseDigestFromOutput(stdout.String())
+	digest, err := ParseDigestFromOutput(stdout.String())
 	if err != nil {
 		return "", fmt.Errorf("parsing madder write output: %w", err)
 	}
@@ -91,10 +91,10 @@ func (s *Store) Init(ctx context.Context) error {
 	return nil
 }
 
-// parseDigestFromOutput extracts a markl-id from `madder write` output. It
+// ParseDigestFromOutput extracts a markl-id from `madder write` output. It
 // handles TAP format where ok lines contain the digest after "ok N - ", and
 // falls back to the last non-empty line for plain digest output.
-func parseDigestFromOutput(stdout string) (string, error) {
+func ParseDigestFromOutput(stdout string) (string, error) {
 	lines := strings.Split(strings.TrimSpace(stdout), "\n")
 	if len(lines) == 0 {
 		return "", fmt.Errorf("empty output")

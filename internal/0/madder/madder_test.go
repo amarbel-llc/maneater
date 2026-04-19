@@ -3,7 +3,7 @@ package madder
 import "testing"
 
 func TestParseDigestTAPFormat(t *testing.T) {
-	got, err := parseDigestFromOutput("ok 1 - blake2b256-abc123def456 -\n")
+	got, err := ParseDigestFromOutput("ok 1 - blake2b256-abc123def456 -\n")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -13,7 +13,7 @@ func TestParseDigestTAPFormat(t *testing.T) {
 }
 
 func TestParseDigestPlain(t *testing.T) {
-	got, err := parseDigestFromOutput("blake2b256-deadbeef\n")
+	got, err := ParseDigestFromOutput("blake2b256-deadbeef\n")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -24,7 +24,7 @@ func TestParseDigestPlain(t *testing.T) {
 
 func TestParseDigestMultilineTAP(t *testing.T) {
 	input := "TAP version 14\n# switched to blob store: maneater\nok 1 - blake2b256-fff000aaa111 /dev/stdin\n1..1\n"
-	got, err := parseDigestFromOutput(input)
+	got, err := ParseDigestFromOutput(input)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -34,7 +34,7 @@ func TestParseDigestMultilineTAP(t *testing.T) {
 }
 
 func TestParseDigestFallbackPlainToken(t *testing.T) {
-	got, err := parseDigestFromOutput("justahash\n")
+	got, err := ParseDigestFromOutput("justahash\n")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -44,7 +44,7 @@ func TestParseDigestFallbackPlainToken(t *testing.T) {
 }
 
 func TestParseDigestEmpty(t *testing.T) {
-	_, err := parseDigestFromOutput("")
+	_, err := ParseDigestFromOutput("")
 	if err == nil {
 		t.Error("expected error for empty output")
 	}

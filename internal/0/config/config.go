@@ -50,8 +50,17 @@ type ModelConfig struct {
 	DocumentPrefix string `toml:"document-prefix"`
 }
 
+// StorageConfig controls how maneater persists and retrieves index blobs.
+// The default (empty) config selects the builtin madder CLI backend with
+// StoreID "maneater". Populating the *Cmd fields swaps the backend for a
+// generic "shell out to configured commands" implementation — see
+// internal/0/storage for the contract.
 type StorageConfig struct {
-	StoreID string `toml:"store-id"`
+	StoreID   string   `toml:"store-id"`
+	ReadCmd   []string `toml:"read-cmd"`
+	WriteCmd  []string `toml:"write-cmd"`
+	ExistsCmd []string `toml:"exists-cmd"`
+	InitCmd   []string `toml:"init-cmd"`
 }
 
 func loadManeaterFile(path string) (ManeaterConfig, bool, error) {
