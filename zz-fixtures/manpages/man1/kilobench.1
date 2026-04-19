@@ -1,0 +1,33 @@
+.TH KILOBENCH 1 "2026-04-19" "maneater-bench" "Maneater Bench Fixtures"
+.SH NAME
+kilobench \- deterministic bench fixture command number 11
+.SH SYNOPSIS
+.B kilobench
+[\fIOPTION\fR]... [\fIFILE\fR]...
+.SH DESCRIPTION
+The
+.B kilobench
+utility is fixture number 11 in the bench-manpath corpus. It exists to
+exercise the mandoc + pandoc rendering pipeline with deterministic roff
+source so wall-clock measurements are reproducible across runs of the
+bench recipe. Each fixture page has distinct NAME / SYNOPSIS /
+DESCRIPTION content so the embedding index does not collapse them to a
+single entry.
+.SH OPTIONS
+.TP
+.BR \-v " " \-\-verbose
+Print verbose output for fixture 11.
+.TP
+.BR \-q " " \-\-quiet
+Suppress non-essential output for fixture 11.
+.SH EXAMPLES
+.PP
+Exercise fixture 11 in default mode:
+.PP
+.nf
+.RS
+kilobench alpha.txt bravo.txt
+.RE
+.fi
+.SH SEE ALSO
+.BR maneater (1)

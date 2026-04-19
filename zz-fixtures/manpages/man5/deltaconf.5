@@ -1,0 +1,30 @@
+.TH DELTACONF 5 "2026-04-19" "maneater-bench" "Maneater Bench Fixtures"
+.SH NAME
+deltaconf \- deterministic bench fixture config format number 4
+.SH SYNOPSIS
+.I ~/.config/maneater-bench/deltaconf.toml
+.SH DESCRIPTION
+This page describes bench fixture config format number 4. The format
+is a TOML document whose shape varies per fixture so the embedding index
+does not collapse across pages. Mandoc + pandoc must still render all
+the usual sections (NAME, SYNOPSIS, DESCRIPTION, EXAMPLES, SEE ALSO)
+per page.
+.SH SYNTAX
+.PP
+Fields:
+.TP
+.B enabled
+Boolean for fixture 4.
+.TP
+.B label
+String label for fixture 4.
+.SH EXAMPLES
+.PP
+.nf
+.RS
+enabled = true
+label = "fixture-4"
+.RE
+.fi
+.SH SEE ALSO
+.BR maneater.toml (5)

@@ -1,0 +1,30 @@
+.TH BRAVOCONF 5 "2026-04-19" "maneater-bench" "Maneater Bench Fixtures"
+.SH NAME
+bravoconf \- deterministic bench fixture config format number 2
+.SH SYNOPSIS
+.I ~/.config/maneater-bench/bravoconf.toml
+.SH DESCRIPTION
+This page describes bench fixture config format number 2. The format
+is a TOML document whose shape varies per fixture so the embedding index
+does not collapse across pages. Mandoc + pandoc must still render all
+the usual sections (NAME, SYNOPSIS, DESCRIPTION, EXAMPLES, SEE ALSO)
+per page.
+.SH SYNTAX
+.PP
+Fields:
+.TP
+.B enabled
+Boolean for fixture 2.
+.TP
+.B label
+String label for fixture 2.
+.SH EXAMPLES
+.PP
+.nf
+.RS
+enabled = true
+label = "fixture-2"
+.RE
+.fi
+.SH SEE ALSO
+.BR maneater.toml (5)

@@ -1,0 +1,33 @@
+.TH OSCARBENCH 1 "2026-04-19" "maneater-bench" "Maneater Bench Fixtures"
+.SH NAME
+oscarbench \- deterministic bench fixture command number 15
+.SH SYNOPSIS
+.B oscarbench
+[\fIOPTION\fR]... [\fIFILE\fR]...
+.SH DESCRIPTION
+The
+.B oscarbench
+utility is fixture number 15 in the bench-manpath corpus. It exists to
+exercise the mandoc + pandoc rendering pipeline with deterministic roff
+source so wall-clock measurements are reproducible across runs of the
+bench recipe. Each fixture page has distinct NAME / SYNOPSIS /
+DESCRIPTION content so the embedding index does not collapse them to a
+single entry.
+.SH OPTIONS
+.TP
+.BR \-v " " \-\-verbose
+Print verbose output for fixture 15.
+.TP
+.BR \-q " " \-\-quiet
+Suppress non-essential output for fixture 15.
+.SH EXAMPLES
+.PP
+Exercise fixture 15 in default mode:
+.PP
+.nf
+.RS
+oscarbench alpha.txt bravo.txt
+.RE
+.fi
+.SH SEE ALSO
+.BR maneater (1)

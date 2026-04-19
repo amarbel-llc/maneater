@@ -1,0 +1,33 @@
+.TH LIMABENCH 1 "2026-04-19" "maneater-bench" "Maneater Bench Fixtures"
+.SH NAME
+limabench \- deterministic bench fixture command number 12
+.SH SYNOPSIS
+.B limabench
+[\fIOPTION\fR]... [\fIFILE\fR]...
+.SH DESCRIPTION
+The
+.B limabench
+utility is fixture number 12 in the bench-manpath corpus. It exists to
+exercise the mandoc + pandoc rendering pipeline with deterministic roff
+source so wall-clock measurements are reproducible across runs of the
+bench recipe. Each fixture page has distinct NAME / SYNOPSIS /
+DESCRIPTION content so the embedding index does not collapse them to a
+single entry.
+.SH OPTIONS
+.TP
+.BR \-v " " \-\-verbose
+Print verbose output for fixture 12.
+.TP
+.BR \-q " " \-\-quiet
+Suppress non-essential output for fixture 12.
+.SH EXAMPLES
+.PP
+Exercise fixture 12 in default mode:
+.PP
+.nf
+.RS
+limabench alpha.txt bravo.txt
+.RE
+.fi
+.SH SEE ALSO
+.BR maneater (1)

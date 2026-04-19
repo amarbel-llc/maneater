@@ -1,0 +1,33 @@
+.TH JULIETBENCH 1 "2026-04-19" "maneater-bench" "Maneater Bench Fixtures"
+.SH NAME
+julietbench \- deterministic bench fixture command number 10
+.SH SYNOPSIS
+.B julietbench
+[\fIOPTION\fR]... [\fIFILE\fR]...
+.SH DESCRIPTION
+The
+.B julietbench
+utility is fixture number 10 in the bench-manpath corpus. It exists to
+exercise the mandoc + pandoc rendering pipeline with deterministic roff
+source so wall-clock measurements are reproducible across runs of the
+bench recipe. Each fixture page has distinct NAME / SYNOPSIS /
+DESCRIPTION content so the embedding index does not collapse them to a
+single entry.
+.SH OPTIONS
+.TP
+.BR \-v " " \-\-verbose
+Print verbose output for fixture 10.
+.TP
+.BR \-q " " \-\-quiet
+Suppress non-essential output for fixture 10.
+.SH EXAMPLES
+.PP
+Exercise fixture 10 in default mode:
+.PP
+.nf
+.RS
+julietbench alpha.txt bravo.txt
+.RE
+.fi
+.SH SEE ALSO
+.BR maneater (1)
