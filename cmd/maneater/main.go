@@ -7,26 +7,10 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
-	"strings"
 
-	"github.com/amarbel-llc/maneater/internal/0/manpath"
 	"github.com/amarbel-llc/maneater/internal/charlie/commands"
 	"github.com/amarbel-llc/purse-first/libs/go-mcp/command"
 )
-
-// manpathFromEnv returns the manpath the `man-*` hidden subcommands should
-// scan. MANEATER_MANPATH (colon-separated) takes precedence; otherwise fall
-// back to the same resolution the index command uses.
-func manpathFromEnv() ([]string, error) {
-	if raw := os.Getenv("MANEATER_MANPATH"); raw != "" {
-		return strings.Split(raw, ":"), nil
-	}
-	cwd, err := os.Getwd()
-	if err != nil {
-		return nil, err
-	}
-	return manpath.Resolve(nil, false, cwd)
-}
 
 //go:embed maneater.1 maneater.toml.5
 var embeddedManpages embed.FS
@@ -114,96 +98,6 @@ func newApp() *command.App {
 		},
 		RunCLI: func(ctx context.Context, _ json.RawMessage) error {
 			return commands.RunInitStore(ctx)
-		},
-	})
-
-	// Hidden man-* subcommands are the contract the synthesized default
-	// manpages corpus invokes via type = "command". They wrap
-	// internal/0/manpath helpers with CLI-shaped I/O. MANEATER_MANPATH
-	// (colon-separated) configures the scan root; when unset, the same
-	// resolution as `maneater index` is used.
-
-	app.AddCommand(&command.Command{
-		Name:   "man-list",
-		Hidden: true,
-		Description: command.Description{
-			Short: "List man pages on MANEATER_MANPATH (for default corpus)",
-		},
-		RunCLI: func(_ context.Context, _ json.RawMessage) error {
-			paths, err := manpathFromEnv()
-			if err != nil {
-				return err
-			}
-			pages, err := manpath.ListManPages(paths)
-			if err != nil {
-				return err
-			}
-			for _, p := range pages {
-				fmt.Println(p)
-			}
-			return nil
-		},
-	})
-
-	app.AddCommand(&command.Command{
-		Name:   "man-hash",
-		Hidden: true,
-		Description: command.Description{
-			Short: "Print hex SHA-256 of a man page's source file (for default corpus hash-cmd)",
-		},
-		RunCLI: func(_ context.Context, _ json.RawMessage) error {
-			if len(os.Args) < 3 {
-				return fmt.Errorf("usage: maneater man-hash <page>")
-			}
-			key := os.Args[len(os.Args)-1]
-			paths, err := manpathFromEnv()
-			if err != nil {
-				return err
-			}
-			name, section := manpath.ParsePageKey(key)
-			source, err := manpath.LocateSource(paths, section, name)
-			if err != nil || source == "" {
-				fmt.Println("")
-				return nil
-			}
-			fmt.Println(manpath.HashFile(source))
-			return nil
-		},
-	})
-
-	app.AddCommand(&command.Command{
-		Name:   "man-read",
-		Hidden: true,
-		Description: command.Description{
-			Short: "Extract synopsis + tldr for a man page (NUL-delimited)",
-		},
-		RunCLI: func(_ context.Context, _ json.RawMessage) error {
-			if len(os.Args) < 3 {
-				return fmt.Errorf("usage: maneater man-read <page>")
-			}
-			key := os.Args[len(os.Args)-1]
-			paths, err := manpathFromEnv()
-			if err != nil {
-				return err
-			}
-			synopsis := manpath.ExtractSynopsis(paths, key)
-			tldr := manpath.ExtractTldr(key)
-			// CommandCorpus splits stdout on \0 into chunks. Emit both
-			// regardless of emptiness; splitChunks drops empty segments.
-			fmt.Printf("%s\x00%s", synopsis, tldr)
-			return nil
-		},
-	})
-
-	app.AddCommand(&command.Command{
-		Name:   "man-prepare",
-		Hidden: true,
-		Description: command.Description{
-			Short: "One-time setup for the default manpages corpus (warms tldr cache)",
-		},
-		RunCLI: func(_ context.Context, _ json.RawMessage) error {
-			manpath.EnsureTldrCache()
-			return nil
 		},
 	})
 

@@ -112,6 +112,20 @@
           buildInputs = [ pkgs.llama-cpp ];
         };
 
+        # maneater-man is the lean companion binary the default manpages
+        # corpus spawns per page. No CGO, no llama-cpp, no llama init cost
+        # on every subprocess. See maneater#12 / #17.
+        maneater-man-unwrapped = pkgs.buildGoApplication {
+          pname = "maneater-man";
+          version = "0.6.0";
+          src = ./.;
+          subPackages = [ "cmd/maneater-man" ];
+          modules = ./gomod2nix.toml;
+          go = pkgs-master.go_1_26;
+          GOTOOLCHAIN = "local";
+          CGO_ENABLED = "0";
+        };
+
         maneater =
           pkgs.runCommand "maneater-wrapped"
             {
@@ -127,6 +141,7 @@
                     pkgs.tldr
                     pkgs-master.go_1_26
                     madder.packages.${system}.default
+                    maneater-man-unwrapped
                   ]
                 } \
                 --set-default MANEATER_CONFIG ${maneater-base-toml}
@@ -135,7 +150,7 @@
       in
       {
         packages = {
-          inherit maneater maneater-unwrapped;
+          inherit maneater maneater-unwrapped maneater-man-unwrapped;
           default = maneater;
         };
 

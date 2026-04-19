@@ -52,21 +52,18 @@ func resolveManpathFromConfig(cfg *config.ManpathConfig, cwd string) ([]string, 
 
 // defaultManpagesCorpusConfig synthesizes the CorpusConfig that maneater
 // uses when the user's TOML has no [[corpora]] entries. It is a plain
-// type = "command" corpus that shells out to this binary's hidden
-// man-{list,hash,read,prepare} subcommands. Manpath is passed through
-// MANEATER_MANPATH (set by resolveCorpora before this function returns).
+// type = "command" corpus that shells out to the lean `maneater-man`
+// companion binary (no CGO, no llama-cpp init cost per subprocess spawn —
+// see maneater#12). Manpath is passed through MANEATER_MANPATH (set by
+// resolveCorpora before this function returns).
 func defaultManpagesCorpusConfig() config.CorpusConfig {
-	exe, err := os.Executable()
-	if err != nil || exe == "" {
-		exe = "maneater"
-	}
 	return config.CorpusConfig{
 		Name:       "manpages",
 		Type:       "command",
-		ListCmd:    []string{exe, "man-list"},
-		ReadCmd:    []string{exe, "man-read"},
-		HashCmd:    []string{exe, "man-hash"},
-		PrepareCmd: []string{exe, "man-prepare"},
+		ListCmd:    []string{"maneater-man", "list"},
+		ReadCmd:    []string{"maneater-man", "read"},
+		HashCmd:    []string{"maneater-man", "hash"},
+		PrepareCmd: []string{"maneater-man", "prepare"},
 		Workers:    8,
 	}
 }
