@@ -100,10 +100,27 @@
           # out to maneater-man. See internal/charlie/commands.defaultManpagesCorpusConfig.
         '';
 
+        # Exclude non-Go-source paths so edits to docs, tests, justfile, etc.
+        # don't bust the derivation hash and trigger a full CGO rebuild.
+        goSrc = pkgs.lib.cleanSourceWith {
+          src = ./.;
+          filter =
+            path: _type:
+            !(pkgs.lib.hasSuffix "/justfile" path)
+            && !(pkgs.lib.hasSuffix "/sweatfile" path)
+            && !(pkgs.lib.hasSuffix "/AGENTS.md" path)
+            && !(pkgs.lib.hasSuffix "/README.md" path)
+            && !(pkgs.lib.hasInfix "/docs/" path)
+            && !(pkgs.lib.hasInfix "/zz-tests_bats/" path)
+            && !(pkgs.lib.hasInfix "/zz-fixtures/" path)
+            && !(pkgs.lib.hasInfix "/build/" path)
+            && !(pkgs.lib.hasInfix "/.tmp/" path);
+        };
+
         maneater-unwrapped = pkgs.buildGoApplication {
           pname = "maneater";
           version = "0.6.0";
-          src = ./.;
+          src = goSrc;
           subPackages = [ "cmd/maneater" ];
           modules = ./gomod2nix.toml;
           go = pkgs-master.go_1_26;
@@ -119,7 +136,7 @@
         maneater-man-unwrapped = pkgs.buildGoApplication {
           pname = "maneater-man";
           version = "0.6.0";
-          src = ./.;
+          src = goSrc;
           subPackages = [ "cmd/maneater-man" ];
           modules = ./gomod2nix.toml;
           go = pkgs-master.go_1_26;
