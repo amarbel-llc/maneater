@@ -189,6 +189,8 @@
           default = maneater;
         };
 
+        lib = { inherit fetchGgufModel; };
+
         devShells.default = pkgs-master.mkShell {
           packages = [
             pkgs-master.go_1_26
