@@ -23,10 +23,36 @@ just fmt            # gofumpt + goimports
   - `corpus_files.go` -- glob-based file corpus
   - `corpus_command.go` -- external list/read command corpus
   - `config.go` -- hierarchical config loading and merging
-- `internal/embedding/` -- CGo bindings to llama.cpp for vector embeddings
+- `internal/0/embedding/` -- CGo bindings to llama.cpp for vector embeddings
+  - `llama.go` -- `Embedder` wrapping `llama_model`, `llama_context`, `llama_vocab` C pointers
   - `index.go` -- in-memory vector index with cosine search and deduplication
+  - `cache.go` -- disk-backed cache of embeddings (JSON, content-hashed for incremental reindex)
 
 CGo requires `CGO_ENABLED=1`, `pkg-config`, and `llama-cpp` in buildInputs.
+
+### llama.cpp Integration
+
+The `Embedder` type in `internal/0/embedding/llama.go` wraps three C pointers:
+`llama_model`, `llama_context`, and `llama_vocab`. It must be closed after use.
+
+Embedding flow:
+1. **Tokenize** — calls `llama_tokenize` twice: first with a zero-length buffer
+   to get the token count, then again to fill the real buffer.
+2. **Batch** — uses `llama_batch_init` (not `llama_batch_get_one`) so that
+   `seq_id` and `logits` flags can be set correctly for multi-sequence batches.
+3. **Encode** — single `llama_encode` call processes all sequences in parallel
+   (BERT-style quadratic attention; cost scales with total tokens in the batch).
+4. **Normalize** — output vectors are L2-normalized so cosine similarity reduces
+   to a dot product.
+
+`Embed` handles a single text; `EmbedBatch` packs multiple texts into one encode
+call and extracts per-sequence embeddings via `llama_get_embeddings_seq`.
+Context window is 512 tokens.
+
+The `Index` type stores normalized `[]float32` embeddings in memory. `Search`
+computes cosine similarity against all entries and returns the top-K results.
+Embeddings are cached to disk as newline-delimited JSON (`CachedEntry` per line)
+with a content hash so unchanged documents are not re-embedded on reindex.
 
 ## Corpus Types
 
