@@ -11,8 +11,8 @@ import (
 	"github.com/amarbel-llc/maneater/internal/0/config"
 	"github.com/amarbel-llc/maneater/internal/0/embedding"
 	"github.com/amarbel-llc/maneater/internal/0/manifest"
-	"github.com/amarbel-llc/maneater/internal/0/storage"
 	"github.com/amarbel-llc/maneater/internal/alfa/corpus"
+	"github.com/amarbel-llc/maneater/internal/alfa/storage"
 )
 
 // searcher holds state for the embedding-based search pipeline.

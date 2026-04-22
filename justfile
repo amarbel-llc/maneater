@@ -1,5 +1,5 @@
-# Build and test
-default: build test test-bats
+# Build, test, and check
+default: build test test-bats check-dagnabit
 
 # Build maneater binary
 build: generate
@@ -24,6 +24,16 @@ build-nix:
 # Build the wrapped maneater (madder + mandoc + pandoc + tldr on its PATH)
 build-wrapped:
   nix build --out-link build/result-wrapped .#default
+
+# Dry-run dagnabit reposition to see how the internal/ DAG has drifted from NATO tiering.
+[group('check')]
+check-dagnabit:
+  dagnabit -n -v internal
+
+# Apply dagnabit reposition to realign internal/ packages with NATO tiering.
+[group('dev')]
+codemod-dagnabit:
+  dagnabit -v internal
 
 [group('explore')]
 man-tree:

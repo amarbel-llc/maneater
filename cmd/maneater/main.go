@@ -8,7 +8,7 @@ import (
 	"os"
 	"os/signal"
 
-	"github.com/amarbel-llc/maneater/internal/charlie/commands"
+	"github.com/amarbel-llc/maneater/internal/bravo/commands"
 	"github.com/amarbel-llc/purse-first/libs/go-mcp/command"
 )
 

@@ -7,7 +7,7 @@ import (
 
 	tap "github.com/amarbel-llc/bob/packages/tap-dancer/go"
 	"github.com/amarbel-llc/maneater/internal/0/config"
-	"github.com/amarbel-llc/maneater/internal/0/storage"
+	"github.com/amarbel-llc/maneater/internal/alfa/storage"
 )
 
 // RunInitStore initializes the configured blob store (madder by default;
