@@ -65,14 +65,31 @@
           inherit system;
         };
 
-        nomic-model = pkgs.fetchurl {
+        # Fetch a GGUF embedding model by name, URL, and sha256. The sha256 may
+        # be in any format builtins.convertHash accepts: hex, base16, base32,
+        # base64, or SRI (sha256-<base64>). HuggingFace shows hex on file pages.
+        fetchGgufModel =
+          { name, url, sha256 }:
+          pkgs.fetchurl {
+            inherit url;
+            name = "${name}.gguf";
+            hash = builtins.convertHash {
+              hash = sha256;
+              hashAlgo = "sha256";
+              toHashFormat = "sri";
+            };
+          };
+
+        nomic-model = fetchGgufModel {
+          name = "nomic-embed-text-v1.5-Q8_0";
           url = "https://huggingface.co/nomic-ai/nomic-embed-text-v1.5-GGUF/resolve/main/nomic-embed-text-v1.5.Q8_0.gguf";
-          hash = "sha256-PiQ0IWSz2UmRupaS/cDdCOP9c2Lgqsw5appcVKVEw7c=";
+          sha256 = "sha256-PiQ0IWSz2UmRupaS/cDdCOP9c2Lgqsw5appcVKVEw7c=";
         };
 
-        snowflake-model = pkgs.fetchurl {
+        snowflake-model = fetchGgufModel {
+          name = "snowflake-arctic-embed-l-v2.0-q8_0";
           url = "https://huggingface.co/Casual-Autopsy/snowflake-arctic-embed-l-v2.0-gguf/resolve/main/snowflake-arctic-embed-l-v2.0-q8_0.gguf";
-          hash = "sha256-C+gyDssPtuIF8KFBnOPUaINLxE0Cy/2l/RcbNoGxJZc=";
+          sha256 = "sha256-C+gyDssPtuIF8KFBnOPUaINLxE0Cy/2l/RcbNoGxJZc=";
         };
 
         maneater-test-toml = pkgs.writeText "maneater-test.toml" ''
