@@ -58,42 +58,15 @@
 
         go = pkgs-master.go_1_26;
 
-        nomic-model = pkgs.fetchGgufModel {
-          name = "nomic-embed-text-v1.5-Q8_0";
-          url = "https://huggingface.co/nomic-ai/nomic-embed-text-v1.5-GGUF/resolve/main/nomic-embed-text-v1.5.Q8_0.gguf";
-          sha256 = "sha256-PiQ0IWSz2UmRupaS/cDdCOP9c2Lgqsw5appcVKVEw7c=";
-        };
-
         snowflake-model = pkgs.fetchGgufModel {
           name = "snowflake-arctic-embed-l-v2.0-q8_0";
           url = "https://huggingface.co/Casual-Autopsy/snowflake-arctic-embed-l-v2.0-gguf/resolve/main/snowflake-arctic-embed-l-v2.0-q8_0.gguf";
           sha256 = "sha256-C+gyDssPtuIF8KFBnOPUaINLxE0Cy/2l/RcbNoGxJZc=";
         };
 
-        maneater-test-toml = pkgs.writeText "maneater-test.toml" ''
-          [models.snowflake]
-          path = "${snowflake-model}"
-          query-prefix = "query: "
-          document-prefix = ""
-        '';
-
-        maneater-base-toml = pkgs.writeText "maneater.toml" ''
-          default = "snowflake"
-
-          [models.nomic]
-          path = "${nomic-model}"
-          query-prefix = "search_query: "
-          document-prefix = "search_document: "
-
-          [models.snowflake]
-          path = "${snowflake-model}"
-          query-prefix = "query: "
-          document-prefix = ""
-
-          # No [[corpora]] entries: maneater's synthesized default
-          # activates a `type = "command"` manpages corpus that shells
-          # out to maneater-man. See internal/charlie/commands.defaultManpagesCorpusConfig.
-        '';
+        maneaterTomls = import ./maneater-toml.nix { inherit pkgs snowflake-model; };
+        maneater-test-toml = maneaterTomls.test;
+        maneater-base-toml = maneaterTomls.base;
 
         # Exclude non-Go-source paths so edits to docs, tests, justfile, etc.
         # don't bust the derivation hash and trigger a full CGO rebuild.
@@ -112,6 +85,8 @@
             && !(pkgs.lib.hasInfix "/.tmp/" path);
         };
 
+        version = "0.6.0";
+
         goAppBase = {
           inherit go;
           src = goSrc;
@@ -123,7 +98,7 @@
           goAppBase
           // {
             pname = "maneater";
-            version = "0.6.0";
+            inherit version;
             subPackages = [ "cmd/maneater" ];
             CGO_ENABLED = "1";
             nativeBuildInputs = [ pkgs.pkg-config ];
@@ -138,7 +113,7 @@
           goAppBase
           // {
             pname = "maneater-man";
-            version = "0.6.0";
+            inherit version;
             subPackages = [ "cmd/maneater-man" ];
             CGO_ENABLED = "0";
           }
