@@ -56,6 +56,8 @@
           inherit system;
         };
 
+        go = pkgs-master.go_1_26;
+
         # Fetch a GGUF embedding model by name, URL, and sha256. The sha256 may
         # be in any format builtins.convertHash accepts: hex, base16, base32,
         # base64, or SRI (sha256-<base64>). HuggingFace shows hex on file pages.
@@ -131,7 +133,7 @@
           src = goSrc;
           subPackages = [ "cmd/maneater" ];
           modules = ./gomod2nix.toml;
-          go = pkgs-master.go_1_26;
+          go = go;
           GOTOOLCHAIN = "local";
           CGO_ENABLED = "1";
           nativeBuildInputs = [ pkgs.pkg-config ];
@@ -147,14 +149,14 @@
           src = goSrc;
           subPackages = [ "cmd/maneater-man" ];
           modules = ./gomod2nix.toml;
-          go = pkgs-master.go_1_26;
+          go = go;
           GOTOOLCHAIN = "local";
           CGO_ENABLED = "0";
         };
 
         goEnv = pkgs.mkGoEnv {
           pwd = ./.;
-          go = pkgs-master.go_1_26;
+          go = go;
         };
 
         maneater =
@@ -170,7 +172,7 @@
                     pkgs.mandoc
                     pkgs.pandoc
                     pkgs.tldr
-                    pkgs-master.go_1_26
+                    go
                     madder.packages.${system}.default
                     maneater-man-unwrapped
                   ]
@@ -190,7 +192,6 @@
         devShells.default = pkgs-master.mkShell {
           packages = [
             goEnv
-            pkgs-master.go_1_26
             pkgs-master.gopls
             pkgs-master.gotools
             pkgs-master.golangci-lint
