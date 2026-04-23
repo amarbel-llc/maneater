@@ -2,14 +2,9 @@
   description = "Maneater: man page search index and semantic search CLI";
 
   inputs = {
-    nixpkgs.url = "github:NixOS/nixpkgs/4590696c8693fea477850fe379a01544293ca4e2";
+    nixpkgs.url = "github:amarbel-llc/nixpkgs";
     nixpkgs-master.url = "github:NixOS/nixpkgs/e2dde111aea2c0699531dc616112a96cd55ab8b5";
     utils.url = "https://flakehub.com/f/numtide/flake-utils/0.1.102";
-
-    gomod2nix = {
-      url = "github:amarbel-llc/gomod2nix";
-      inputs.nixpkgs.follows = "nixpkgs";
-    };
 
     tommy = {
       url = "github:amarbel-llc/tommy";
@@ -45,7 +40,6 @@
       nixpkgs,
       nixpkgs-master,
       utils,
-      gomod2nix,
       tommy,
       bob,
       madder,
@@ -56,9 +50,6 @@
       let
         pkgs = import nixpkgs {
           inherit system;
-          overlays = [
-            gomod2nix.overlays.default
-          ];
         };
 
         pkgs-master = import nixpkgs-master {
@@ -199,7 +190,6 @@
             pkgs-master.golangci-lint
             pkgs-master.delve
             pkgs-master.gofumpt
-            gomod2nix.packages.${system}.default
             pkgs.just
             pkgs.llama-cpp
             pkgs.pandoc
