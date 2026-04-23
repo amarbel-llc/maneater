@@ -11,14 +11,16 @@ schema = 3
     hash = 'sha256-lE+G+cxMITAOVyfMQCxmRtMa97OiLy2T8yfbn/PIt6U='
 
   [mod.'github.com/amarbel-llc/tommy']
-    version = 'v0.0.0-20260405143331-87255e87bf37'
-    hash = 'sha256-ElzACYuPmWpNk7bm4V8de18P+PqG+92X9aSxJg8gRUI='
+    version = 'v0.2.3'
+    hash = 'sha256-qV9eENXxLHS0ybgzuFJmEsi/0n76HrdcCj2csh9UNOM='
+    goVersion = '1.26'
 
   [mod.'golang.org/x/text']
-    version = 'v0.34.0'
-    hash = 'sha256-wGKd1JkeiFROibvo2kkAuQ7JajSIfV4utGaoGbTQhQM='
-    goVersion = '1.24.0'
+    version = 'v0.36.0'
+    hash = 'sha256-/0t9C6Mc8kYjxweFB0us2lGKo8GovHhBiq5nlMOppC0='
+    goVersion = '1.25.0'
 
   [mod.'mvdan.cc/sh/v3']
-    version = 'v3.12.0'
-    hash = 'sha256-1T55DgxWYDG1Y3SyZYLmSdLQPMVC6LUp1yLH98wKhGk='
+    version = 'v3.13.1'
+    hash = 'sha256-FM+2xpGELZLm4Gc09OE5Z3JeNLPMvzeb1wRcdAIeKy4='
+    goVersion = '1.25.0'
