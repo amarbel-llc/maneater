@@ -52,7 +52,6 @@ function search_without_index_prints_guidance { # @test
 }
 
 function index_is_incremental { # @test
-  skip "blob store reuse not working — see https://github.com/amarbel-llc/maneater/issues/21"
   write_test_config
   init_maneater_store
 

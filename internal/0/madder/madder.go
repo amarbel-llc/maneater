@@ -5,6 +5,7 @@ package madder
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
 	"os/exec"
 	"strings"
@@ -18,16 +19,16 @@ type Store struct {
 	StoreID string
 }
 
-// Read fetches a blob by digest via `madder cat <digest>`.
+// Read fetches a blob by digest via `madder cat <store-id> <digest>`.
 func (s *Store) Read(ctx context.Context, digest string) ([]byte, error) {
-	cmd := exec.CommandContext(ctx, "madder", "cat", digest)
+	cmd := exec.CommandContext(ctx, "madder", "cat", s.StoreID, digest)
 
 	var stdout, stderr bytes.Buffer
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr
 
 	if err := cmd.Run(); err != nil {
-		return nil, fmt.Errorf("madder cat %s: %w\nstderr: %s", digest, err, stderr.String())
+		return nil, fmt.Errorf("madder cat %s %s: %w\nstderr: %s", s.StoreID, digest, err, stderr.String())
 	}
 	return stdout.Bytes(), nil
 }
@@ -92,8 +93,9 @@ func (s *Store) Init(ctx context.Context) error {
 }
 
 // ParseDigestFromOutput extracts a markl-id from `madder write` output. It
-// handles TAP format where ok lines contain the digest after "ok N - ", and
-// falls back to the last non-empty line for plain digest output.
+// handles TAP format where ok lines contain the digest after "ok N - ", JSON
+// output with an "id" field, and falls back to the last non-empty line for
+// plain digest output.
 func ParseDigestFromOutput(stdout string) (string, error) {
 	lines := strings.Split(strings.TrimSpace(stdout), "\n")
 	if len(lines) == 0 {
@@ -102,9 +104,20 @@ func ParseDigestFromOutput(stdout string) (string, error) {
 
 	var lastOKDigest string
 	for _, line := range lines {
+		// TAP format: ok N - <digest>
 		fields := strings.Fields(line)
 		if len(fields) >= 4 && fields[0] == "ok" && fields[2] == "-" {
 			lastOKDigest = fields[3]
+			continue
+		}
+		// JSON format: {"id":"<digest>",...}
+		if strings.HasPrefix(strings.TrimSpace(line), "{") {
+			var obj struct {
+				ID string `json:"id"`
+			}
+			if err := json.Unmarshal([]byte(line), &obj); err == nil && obj.ID != "" {
+				lastOKDigest = obj.ID
+			}
 		}
 	}
 	if lastOKDigest != "" {
