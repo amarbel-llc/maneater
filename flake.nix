@@ -152,6 +152,11 @@
           CGO_ENABLED = "0";
         };
 
+        goEnv = pkgs.mkGoEnv {
+          pwd = ./.;
+          go = pkgs-master.go_1_26;
+        };
+
         maneater =
           pkgs.runCommand "maneater-wrapped"
             {
@@ -184,6 +189,7 @@
 
         devShells.default = pkgs-master.mkShell {
           packages = [
+            goEnv
             pkgs-master.go_1_26
             pkgs-master.gopls
             pkgs-master.gotools
