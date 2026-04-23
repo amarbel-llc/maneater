@@ -58,28 +58,13 @@
 
         go = pkgs-master.go_1_26;
 
-        # Fetch a GGUF embedding model by name, URL, and sha256. The sha256 may
-        # be in any format builtins.convertHash accepts: hex, base16, base32,
-        # base64, or SRI (sha256-<base64>). HuggingFace shows hex on file pages.
-        fetchGgufModel =
-          { name, url, sha256 }:
-          pkgs.fetchurl {
-            inherit url;
-            name = "${name}.gguf";
-            hash = builtins.convertHash {
-              hash = sha256;
-              hashAlgo = "sha256";
-              toHashFormat = "sri";
-            };
-          };
-
-        nomic-model = fetchGgufModel {
+        nomic-model = pkgs.fetchGgufModel {
           name = "nomic-embed-text-v1.5-Q8_0";
           url = "https://huggingface.co/nomic-ai/nomic-embed-text-v1.5-GGUF/resolve/main/nomic-embed-text-v1.5.Q8_0.gguf";
           sha256 = "sha256-PiQ0IWSz2UmRupaS/cDdCOP9c2Lgqsw5appcVKVEw7c=";
         };
 
-        snowflake-model = fetchGgufModel {
+        snowflake-model = pkgs.fetchGgufModel {
           name = "snowflake-arctic-embed-l-v2.0-q8_0";
           url = "https://huggingface.co/Casual-Autopsy/snowflake-arctic-embed-l-v2.0-gguf/resolve/main/snowflake-arctic-embed-l-v2.0-q8_0.gguf";
           sha256 = "sha256-C+gyDssPtuIF8KFBnOPUaINLxE0Cy/2l/RcbNoGxJZc=";
@@ -127,36 +112,41 @@
             && !(pkgs.lib.hasInfix "/.tmp/" path);
         };
 
-        maneater-unwrapped = pkgs.buildGoApplication {
-          pname = "maneater";
-          version = "0.6.0";
+        goAppBase = {
+          inherit go;
           src = goSrc;
-          subPackages = [ "cmd/maneater" ];
           modules = ./gomod2nix.toml;
-          go = go;
           GOTOOLCHAIN = "local";
-          CGO_ENABLED = "1";
-          nativeBuildInputs = [ pkgs.pkg-config ];
-          buildInputs = [ pkgs.llama-cpp ];
         };
+
+        maneater-unwrapped = pkgs.buildGoApplication (
+          goAppBase
+          // {
+            pname = "maneater";
+            version = "0.6.0";
+            subPackages = [ "cmd/maneater" ];
+            CGO_ENABLED = "1";
+            nativeBuildInputs = [ pkgs.pkg-config ];
+            buildInputs = [ pkgs.llama-cpp ];
+          }
+        );
 
         # maneater-man is the lean companion binary the default manpages
         # corpus spawns per page. No CGO, no llama-cpp, no llama init cost
         # on every subprocess. See maneater#12 / #17.
-        maneater-man-unwrapped = pkgs.buildGoApplication {
-          pname = "maneater-man";
-          version = "0.6.0";
-          src = goSrc;
-          subPackages = [ "cmd/maneater-man" ];
-          modules = ./gomod2nix.toml;
-          go = go;
-          GOTOOLCHAIN = "local";
-          CGO_ENABLED = "0";
-        };
+        maneater-man-unwrapped = pkgs.buildGoApplication (
+          goAppBase
+          // {
+            pname = "maneater-man";
+            version = "0.6.0";
+            subPackages = [ "cmd/maneater-man" ];
+            CGO_ENABLED = "0";
+          }
+        );
 
         goEnv = pkgs.mkGoEnv {
           pwd = ./.;
-          go = go;
+          inherit go;
         };
 
         maneater =
@@ -186,8 +176,6 @@
           inherit maneater maneater-unwrapped maneater-man-unwrapped;
           default = maneater;
         };
-
-        lib = { inherit fetchGgufModel; };
 
         devShells.default = pkgs-master.mkShell {
           packages = [
