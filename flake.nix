@@ -50,6 +50,7 @@
       let
         pkgs = import nixpkgs {
           inherit system;
+          overlays = [ nixpkgs.overlays.default ];
         };
 
         pkgs-master = import nixpkgs-master {

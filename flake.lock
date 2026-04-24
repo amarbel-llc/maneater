@@ -1271,11 +1271,11 @@
     },
     "nixpkgs_9": {
       "locked": {
-        "lastModified": 1776972814,
-        "narHash": "sha256-pDxMOoUe5adO6xttvuXWh7AcesS8gkZjTxZ+9ZVjJFQ=",
+        "lastModified": 1777042677,
+        "narHash": "sha256-PkHa8cSqjNVD/ug5VNyC0ebwAVRJxvw92FFLWinbdQs=",
         "owner": "amarbel-llc",
         "repo": "nixpkgs",
-        "rev": "b75a0d7f1e0872bf93a4295dc7fa44267c8b9555",
+        "rev": "9bad1e489bd4c713da002618bd825372d35430af",
         "type": "github"
       },
       "original": {
