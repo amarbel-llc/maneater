@@ -247,6 +247,19 @@ put the expected doc at #1.
 
 Reproduce with `just smart-profile-smoke`.
 
+### Caveat: smoke results were partly coincidental
+
+The whole-doc-at-n_ctx behavior this FDR promises is **not actually
+running yet**. `internal/alfa/corpus/files.go:28-31` interprets
+`max-chars = 0` as "use the 500-char default" rather than "no cap"
+(see maneater#24), and then truncates with `text[:maxChars]`. The
+smoke test's docs were therefore embedded as their first 500
+characters only. The search rankings still came out right because
+the queries' answers happened to be in each file's first paragraph
+(titles, top-of-file headers, opening sentences). Once #24 is fixed
+the smoke will exercise the actual whole-doc path and the rankings
+become a real signal rather than a happy accident.
+
 ## More Information
 
 - The llama.cpp embedder lives in `internal/0/embedding/llama.go`. The
@@ -261,8 +274,26 @@ Reproduce with `just smart-profile-smoke`.
   `model.DocumentPrefix`, `model.NCtx` (resolved), `model.Pooling`,
   `corpus.MaxChars`, and `corpus.Model` so cache invalidates on any
   embedding-affecting change.
-- Open follow-ups discovered during the smoke test: maneater#22
-  (failed embeds re-attempted on every warm pass instead of memoized)
-  and maneater#23 (failed embeds counted toward the success tally).
-  Neither blocks `experimental` but both should land before
-  `accepted`.
+- Open follow-ups discovered during smoke testing:
+    - maneater#22 — failed embeds re-attempted on every warm pass
+      instead of being memoized.
+    - maneater#23 — failed embeds counted toward the `embedded`
+      tally on the Done line.
+    - maneater#24 — `max-chars = 0` truncates to a 500-char default
+      instead of "no cap"; **this is the gap between the FDR's
+      whole-doc design intent and what's actually running today**.
+    - maneater#25 — `maneater search` doesn't yet support per-corpus
+      models. Two-corpus configs with different `[models.X]` will
+      mis-rank silently. **This is the single biggest gap between
+      `experimental` and `testing` per the promotion criteria**.
+    - maneater#26 — `decoderStrategy` (encode/decode dispatch +
+      KV-cache reset) has no automated test coverage; only the
+      manual smoke catches regressions.
+    - maneater#27 — warm `index` loads the embedder model even when
+      every doc reuses cleanly from cache (5.4 s of waste per warm
+      pass with the qwen3-4b profile).
+
+  None block `experimental` — the gate criterion was met by the
+  smoke test even with #24 in play. #25 and #24 must land before
+  `experimental → testing`. The rest can ride along with the harness
+  comparison work.
