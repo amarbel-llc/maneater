@@ -57,6 +57,57 @@ func TestConfigHash(t *testing.T) {
 	}
 }
 
+func TestConfigHashNCtxInvalidates(t *testing.T) {
+	base := config.ModelConfig{Path: "/m.gguf"}
+	cc := config.CorpusConfig{MaxChars: 500}
+
+	// 0 and 512 must hash equal because ResolvedNCtx collapses 0 -> 512;
+	// otherwise old caches built before the field existed would all
+	// invalidate on first run after upgrade.
+	hZero := config.Hash(base, cc)
+	hExplicit512 := config.Hash(config.ModelConfig{Path: "/m.gguf", NCtx: 512}, cc)
+	if hZero != hExplicit512 {
+		t.Errorf("NCtx=0 and NCtx=512 should hash equal, got %q vs %q", hZero, hExplicit512)
+	}
+
+	hLarge := config.Hash(config.ModelConfig{Path: "/m.gguf", NCtx: 4096}, cc)
+	if hZero == hLarge {
+		t.Error("different NCtx produced same hash")
+	}
+}
+
+func TestConfigHashPoolingInvalidates(t *testing.T) {
+	base := config.ModelConfig{Path: "/m.gguf"}
+	cc := config.CorpusConfig{MaxChars: 500}
+
+	hDefault := config.Hash(base, cc) // pooling = ""
+	hLast := config.Hash(config.ModelConfig{Path: "/m.gguf", Pooling: "last"}, cc)
+	hMean := config.Hash(config.ModelConfig{Path: "/m.gguf", Pooling: "mean"}, cc)
+
+	if hDefault == hLast {
+		t.Error("default pooling and last pooling hashed equal")
+	}
+	if hLast == hMean {
+		t.Error("different pooling values hashed equal")
+	}
+}
+
+func TestConfigHashCorpusModelInvalidates(t *testing.T) {
+	mc := config.ModelConfig{Path: "/m.gguf"}
+
+	hUnset := config.Hash(mc, config.CorpusConfig{MaxChars: 500})
+	hQwen := config.Hash(mc, config.CorpusConfig{MaxChars: 500, Model: "qwen3-4b"})
+
+	if hUnset == hQwen {
+		t.Error("corpus.Model unset vs set should hash differently")
+	}
+
+	hSnowflake := config.Hash(mc, config.CorpusConfig{MaxChars: 500, Model: "snowflake"})
+	if hQwen == hSnowflake {
+		t.Error("different corpus.Model values hashed equal")
+	}
+}
+
 func TestMetaSaveLoad(t *testing.T) {
 	dir := t.TempDir()
 	meta := embedding.IndexMeta{
