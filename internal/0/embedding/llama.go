@@ -12,10 +12,25 @@ import (
 )
 
 type Embedder struct {
-	model *C.struct_llama_model
-	ctx   *C.struct_llama_context
-	vocab *C.struct_llama_vocab
-	nEmbd int
+	model      *C.struct_llama_model
+	ctx        *C.struct_llama_context
+	vocab      *C.struct_llama_vocab
+	nEmbd      int
+	nCtx       int
+	hasEncoder bool // false ⇒ decoder-only LLM-as-encoder; route batch through llama_decode
+}
+
+// runBatch dispatches to llama_encode for true encoder models
+// (BERT-family) and llama_decode for decoder-only models that produce
+// embeddings via the embedding head (Qwen3-Embedding, e5-mistral, etc.).
+// Calling llama_encode against a model with no encoder block null-derefs
+// inside libllama; calling llama_decode against a true encoder is just
+// inefficient. Mirrors examples/embedding/embedding.cpp upstream.
+func (e *Embedder) runBatch(batch C.struct_llama_batch) C.int32_t {
+	if e.hasEncoder {
+		return C.llama_encode(e.ctx, batch)
+	}
+	return C.llama_decode(e.ctx, batch)
 }
 
 // NewEmbedder loads a GGUF model and creates a llama context for
@@ -70,12 +85,15 @@ func NewEmbedder(modelPath string, nCtx int, poolingType string) (*Embedder, err
 
 	vocab := C.llama_model_get_vocab(model)
 	nEmbd := int(C.llama_model_n_embd(model))
+	hasEncoder := bool(C.llama_model_has_encoder(model))
 
 	return &Embedder{
-		model: model,
-		ctx:   ctx,
-		vocab: vocab,
-		nEmbd: nEmbd,
+		model:      model,
+		ctx:        ctx,
+		vocab:      vocab,
+		nEmbd:      nEmbd,
+		nCtx:       nCtx,
+		hasEncoder: hasEncoder,
 	}, nil
 }
 
@@ -139,8 +157,8 @@ func (e *Embedder) Embed(text string) ([]float32, error) {
 	// Mark last token for output
 	logitsSlice[nTokens-1] = 1
 
-	if ret := C.llama_encode(e.ctx, batch); ret != 0 {
-		return nil, fmt.Errorf("llama_encode failed: %d", ret)
+	if ret := e.runBatch(batch); ret != 0 {
+		return nil, fmt.Errorf("llama batch failed: %d", ret)
 	}
 
 	// Use pooled sequence embedding for embedding models
@@ -257,8 +275,8 @@ func (e *Embedder) BatchEmbed(texts []string) ([][]float32, error) {
 		totalTokens += n
 	}
 
-	if totalTokens > 512 {
-		return nil, fmt.Errorf("batch total %d tokens exceeds context size 512", totalTokens)
+	if int(totalTokens) > e.nCtx {
+		return nil, fmt.Errorf("batch total %d tokens exceeds context size %d", totalTokens, e.nCtx)
 	}
 
 	// Build batch with multiple sequences.
@@ -286,8 +304,8 @@ func (e *Embedder) BatchEmbed(texts []string) ([][]float32, error) {
 		logitsSlice[idx-1] = 1
 	}
 
-	if ret := C.llama_encode(e.ctx, batch); ret != 0 {
-		return nil, fmt.Errorf("llama_encode failed: %d", ret)
+	if ret := e.runBatch(batch); ret != 0 {
+		return nil, fmt.Errorf("llama batch failed: %d", ret)
 	}
 
 	// Retrieve and normalize each sequence's embedding.
@@ -320,9 +338,10 @@ func (e *Embedder) BatchEmbed(texts []string) ([][]float32, error) {
 	return results, nil
 }
 
-// ContextSize returns the context window size (max tokens per batch).
+// ContextSize returns the context window size (max tokens per batch)
+// configured at NewEmbedder time.
 func (e *Embedder) ContextSize() int {
-	return 512
+	return e.nCtx
 }
 
 func (e *Embedder) EmbeddingDim() int {
