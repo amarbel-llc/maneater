@@ -177,6 +177,55 @@ paths = ["~/refs/rfcs/*.txt"]
   fix is to define a second `[models.X]` with the same path and a
   different pooling value.
 
+## Memory tuning
+
+The 4 GB Q8_0 footprint dominates per-search peak RSS. Two cheap
+levers reduce it without a quality cliff:
+
+### 1. Lower quantization on the same model
+
+Same Qwen3-Embedding-4B, smaller GGUF:
+
+| Quant   | Approx size | Δ vs Q8_0 |
+|---------|-------------|-----------|
+| Q8_0    | ~4.0 GB     | baseline  |
+| Q6_K    | ~3.3 GB     | -18 %     |
+| Q5_K_M  | ~2.9 GB     | -28 %     |
+| Q4_K_M  | ~2.5 GB     | -38 %     |
+
+All five are present in the official `Qwen/Qwen3-Embedding-4B-GGUF`
+repo. Switching profile = a `fetchGgufModel` URL change in
+`flake.nix` plus a fresh `gguf-sri-hash` lookup. Quality cost is
+measurable via `search_quality_test.go` once that runs against the
+smart profile (the FDR's `experimental → testing` gate). Q4_K_M is
+the conventional Pareto choice for retrieval; for the small-corpus
+use case Q8_0's marginal benefit may not be worth the +1.5 GB.
+
+### 2. KV-cache quantization
+
+Independent of the model footprint: llama.cpp's context params
+expose `type_k` and `type_v`, defaulting to f16. Setting both to
+`GGML_TYPE_Q8_0` halves the per-call KV-cache memory. At
+n-ctx=4096 with the qwen3-4b head dim, this is meaningful but
+much smaller than the model itself.
+
+Schema shape if/when wired up: a new `[models.X].kv-quant` field
+accepting `""` (default = f16), `"q8_0"`, `"q4_0"`, or similar.
+Threads through `NewEmbedder` to `cp.type_k = …; cp.type_v = …`
+and folds into `confighash.Hash` so the cache invalidates if a
+config changes the precision.
+
+### Out-of-scope here
+
+- **Model variant swap** (e.g. Qwen3-Embedding-0.6B, ~700 MB) —
+  not memory tuning of the shipped profile, it's a different
+  `[models.X]` entry. The FDR's per-corpus selection already
+  supports this; ship multiple stanzas and let users pick.
+- **`use_mlock`** would *raise* steady-state memory by pinning
+  pages, the wrong direction here.
+- **Daemon process** would amortize the 4 GB across many searches
+  but increase resident memory globally, again the wrong direction.
+
 ## Implementation status (experimental, 2026-04-25)
 
 The schema additions, embedder plumbing, and reference profile are
