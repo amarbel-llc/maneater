@@ -44,10 +44,44 @@ type ManpathConfig struct {
 	NoAuto  bool     `toml:"no-auto"`
 }
 
+// ModelConfig is one [models.<name>] entry. Path is required; the
+// remaining fields tune embedding behavior.
+//
+// NCtx (toml: n-ctx) sets llama_context_default_params.n_ctx for this
+// model. Defaults to 512 when zero/unset, preserving the historical
+// behavior. Larger values raise quality on long documents at memory +
+// latency cost; see FDR-0001 (smart-retrieval corpus profile).
+//
+// Pooling (toml: pooling) selects llama_pooling_type: "" (model
+// default), "mean", "cls", or "last". Decoder-LLM-as-encoder models
+// (Qwen3-Embedding, Mistral-derived) typically need "last".
 type ModelConfig struct {
 	Path           string `toml:"path"`
 	QueryPrefix    string `toml:"query-prefix"`
 	DocumentPrefix string `toml:"document-prefix"`
+	NCtx           int    `toml:"n-ctx"`
+	Pooling        string `toml:"pooling"`
+}
+
+// ResolvedNCtx returns the effective context size: m.NCtx when
+// positive, otherwise 512 (the maneater historical default).
+func (m ModelConfig) ResolvedNCtx() int {
+	if m.NCtx > 0 {
+		return m.NCtx
+	}
+	return 512
+}
+
+// ValidatePooling returns nil if m.Pooling is one of the accepted
+// values, otherwise an error naming the offender. Empty string ("")
+// is accepted and means "use the model's GGUF-declared default".
+func (m ModelConfig) ValidatePooling() error {
+	switch m.Pooling {
+	case "", "mean", "cls", "last":
+		return nil
+	default:
+		return fmt.Errorf("unknown pooling type %q (want one of \"\", \"mean\", \"cls\", \"last\")", m.Pooling)
+	}
 }
 
 // StorageConfig controls how maneater persists and retrieves index blobs.

@@ -547,3 +547,67 @@ no-auto = true
 		t.Error("no-auto should be true")
 	}
 }
+
+func TestParseModelNCtxAndPooling(t *testing.T) {
+	input := []byte(`
+[models.qwen3-4b]
+path = "/tmp/qwen3.gguf"
+n-ctx = 4096
+pooling = "last"
+query-prefix = "Instruct: ...\nQuery: "
+`)
+	doc, err := DecodeManeaterConfig(input)
+	if err != nil {
+		t.Fatalf("parse error: %v", err)
+	}
+	cfg := doc.Data()
+	m := cfg.Models["qwen3-4b"]
+	if m.NCtx != 4096 {
+		t.Errorf("NCtx = %d, want 4096", m.NCtx)
+	}
+	if m.Pooling != "last" {
+		t.Errorf("Pooling = %q, want last", m.Pooling)
+	}
+}
+
+func TestModelResolvedNCtxDefaults(t *testing.T) {
+	cases := []struct {
+		got  int
+		want int
+	}{
+		{0, 512},     // unset preserves the historical hardcoded value
+		{1, 1},       // any positive value passes through
+		{4096, 4096}, // realistic large value
+	}
+	for _, c := range cases {
+		m := ModelConfig{NCtx: c.got}
+		if got := m.ResolvedNCtx(); got != c.want {
+			t.Errorf("ResolvedNCtx() with NCtx=%d = %d, want %d", c.got, got, c.want)
+		}
+	}
+}
+
+func TestModelResolvedNCtxNegativeFallsBackToDefault(t *testing.T) {
+	m := ModelConfig{NCtx: -1}
+	if got := m.ResolvedNCtx(); got != 512 {
+		t.Errorf("ResolvedNCtx() with NCtx=-1 = %d, want 512 (default)", got)
+	}
+}
+
+func TestModelValidatePoolingAccepts(t *testing.T) {
+	for _, p := range []string{"", "mean", "cls", "last"} {
+		m := ModelConfig{Pooling: p}
+		if err := m.ValidatePooling(); err != nil {
+			t.Errorf("ValidatePooling(%q): unexpected error %v", p, err)
+		}
+	}
+}
+
+func TestModelValidatePoolingRejects(t *testing.T) {
+	for _, p := range []string{"max", "first", "MEAN", " last", "last "} {
+		m := ModelConfig{Pooling: p}
+		if err := m.ValidatePooling(); err == nil {
+			t.Errorf("ValidatePooling(%q): expected error, got nil", p)
+		}
+	}
+}

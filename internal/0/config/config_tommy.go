@@ -4,10 +4,9 @@ package config
 
 import (
 	"fmt"
-	"strings"
-
 	"github.com/amarbel-llc/tommy/pkg/cst"
 	"github.com/amarbel-llc/tommy/pkg/document"
+	"strings"
 )
 
 var (
@@ -84,6 +83,16 @@ func DecodeManeaterConfig(input []byte) (*ManeaterConfigDocument, error) {
 					if v, ok := cst.ExtractString(_kv); ok {
 						entry.DocumentPrefix = v
 						d.consumed["models."+_mk+"."+"document-prefix"] = true
+					}
+				case "n-ctx":
+					if v, ok := cst.ExtractInt(_kv); ok {
+						entry.NCtx = v
+						d.consumed["models."+_mk+"."+"n-ctx"] = true
+					}
+				case "pooling":
+					if v, ok := cst.ExtractString(_kv); ok {
+						entry.Pooling = v
+						d.consumed["models."+_mk+"."+"pooling"] = true
 					}
 				}
 			}
@@ -262,13 +271,25 @@ func (d *ManeaterConfigDocument) Encode() ([]byte, error) {
 					return nil, fmt.Errorf("%w", err)
 				}
 			}
+			if mapVal.NCtx != 0 || cst.HasValue(subTable, "n-ctx") {
+				if err := cst.SetAny(subTable, "n-ctx", mapVal.NCtx); err != nil {
+					return nil, fmt.Errorf("%w", err)
+				}
+			}
+			if mapVal.Pooling != "" || cst.HasValue(subTable, "pooling") {
+				if err := cst.SetAny(subTable, "pooling", mapVal.Pooling); err != nil {
+					return nil, fmt.Errorf("%w", err)
+				}
+			}
 		}
 	}
 	if d.data.Manpath != nil {
 		tableNode := cst.EnsureChildTable(d.cstDoc.Root(), d.cstDoc.Root(), "manpath")
 		{
-			if err := cst.SetAny(tableNode, "include", d.data.Manpath.Include); err != nil {
-				return nil, fmt.Errorf("%w", err)
+			if len(d.data.Manpath.Include) > 0 || cst.HasValue(tableNode, "include") {
+				if err := cst.SetAny(tableNode, "include", d.data.Manpath.Include); err != nil {
+					return nil, fmt.Errorf("%w", err)
+				}
 			}
 		}
 		if d.data.Manpath.NoAuto != false || cst.HasValue(tableNode, "no-auto") {
@@ -285,23 +306,31 @@ func (d *ManeaterConfigDocument) Encode() ([]byte, error) {
 			}
 		}
 		{
-			if err := cst.SetAny(tableNode, "read-cmd", d.data.Storage.ReadCmd); err != nil {
-				return nil, fmt.Errorf("%w", err)
+			if len(d.data.Storage.ReadCmd) > 0 || cst.HasValue(tableNode, "read-cmd") {
+				if err := cst.SetAny(tableNode, "read-cmd", d.data.Storage.ReadCmd); err != nil {
+					return nil, fmt.Errorf("%w", err)
+				}
 			}
 		}
 		{
-			if err := cst.SetAny(tableNode, "write-cmd", d.data.Storage.WriteCmd); err != nil {
-				return nil, fmt.Errorf("%w", err)
+			if len(d.data.Storage.WriteCmd) > 0 || cst.HasValue(tableNode, "write-cmd") {
+				if err := cst.SetAny(tableNode, "write-cmd", d.data.Storage.WriteCmd); err != nil {
+					return nil, fmt.Errorf("%w", err)
+				}
 			}
 		}
 		{
-			if err := cst.SetAny(tableNode, "exists-cmd", d.data.Storage.ExistsCmd); err != nil {
-				return nil, fmt.Errorf("%w", err)
+			if len(d.data.Storage.ExistsCmd) > 0 || cst.HasValue(tableNode, "exists-cmd") {
+				if err := cst.SetAny(tableNode, "exists-cmd", d.data.Storage.ExistsCmd); err != nil {
+					return nil, fmt.Errorf("%w", err)
+				}
 			}
 		}
 		{
-			if err := cst.SetAny(tableNode, "init-cmd", d.data.Storage.InitCmd); err != nil {
-				return nil, fmt.Errorf("%w", err)
+			if len(d.data.Storage.InitCmd) > 0 || cst.HasValue(tableNode, "init-cmd") {
+				if err := cst.SetAny(tableNode, "init-cmd", d.data.Storage.InitCmd); err != nil {
+					return nil, fmt.Errorf("%w", err)
+				}
 			}
 		}
 	}
@@ -374,6 +403,16 @@ func DecodeManeaterConfigInto(data *ManeaterConfig, doc *document.Document, cont
 					if v, ok := cst.ExtractString(_kv); ok {
 						entry.DocumentPrefix = v
 						consumed[keyPrefix+keyPrefix+"models."+_mk+"."+"document-prefix"] = true
+					}
+				case "n-ctx":
+					if v, ok := cst.ExtractInt(_kv); ok {
+						entry.NCtx = v
+						consumed[keyPrefix+keyPrefix+"models."+_mk+"."+"n-ctx"] = true
+					}
+				case "pooling":
+					if v, ok := cst.ExtractString(_kv); ok {
+						entry.Pooling = v
+						consumed[keyPrefix+keyPrefix+"models."+_mk+"."+"pooling"] = true
 					}
 				}
 			}
@@ -549,13 +588,25 @@ func EncodeManeaterConfigFrom(data *ManeaterConfig, doc *document.Document, cont
 					return fmt.Errorf("%w", err)
 				}
 			}
+			if mapVal.NCtx != 0 || cst.HasValue(subTable, "n-ctx") {
+				if err := cst.SetAny(subTable, "n-ctx", mapVal.NCtx); err != nil {
+					return fmt.Errorf("%w", err)
+				}
+			}
+			if mapVal.Pooling != "" || cst.HasValue(subTable, "pooling") {
+				if err := cst.SetAny(subTable, "pooling", mapVal.Pooling); err != nil {
+					return fmt.Errorf("%w", err)
+				}
+			}
 		}
 	}
 	if data.Manpath != nil {
 		tableNode := cst.EnsureChildTable(doc.Root(), container, "manpath")
 		{
-			if err := cst.SetAny(tableNode, "include", data.Manpath.Include); err != nil {
-				return fmt.Errorf("%w", err)
+			if len(data.Manpath.Include) > 0 || cst.HasValue(tableNode, "include") {
+				if err := cst.SetAny(tableNode, "include", data.Manpath.Include); err != nil {
+					return fmt.Errorf("%w", err)
+				}
 			}
 		}
 		if data.Manpath.NoAuto != false || cst.HasValue(tableNode, "no-auto") {
@@ -572,23 +623,31 @@ func EncodeManeaterConfigFrom(data *ManeaterConfig, doc *document.Document, cont
 			}
 		}
 		{
-			if err := cst.SetAny(tableNode, "read-cmd", data.Storage.ReadCmd); err != nil {
-				return fmt.Errorf("%w", err)
+			if len(data.Storage.ReadCmd) > 0 || cst.HasValue(tableNode, "read-cmd") {
+				if err := cst.SetAny(tableNode, "read-cmd", data.Storage.ReadCmd); err != nil {
+					return fmt.Errorf("%w", err)
+				}
 			}
 		}
 		{
-			if err := cst.SetAny(tableNode, "write-cmd", data.Storage.WriteCmd); err != nil {
-				return fmt.Errorf("%w", err)
+			if len(data.Storage.WriteCmd) > 0 || cst.HasValue(tableNode, "write-cmd") {
+				if err := cst.SetAny(tableNode, "write-cmd", data.Storage.WriteCmd); err != nil {
+					return fmt.Errorf("%w", err)
+				}
 			}
 		}
 		{
-			if err := cst.SetAny(tableNode, "exists-cmd", data.Storage.ExistsCmd); err != nil {
-				return fmt.Errorf("%w", err)
+			if len(data.Storage.ExistsCmd) > 0 || cst.HasValue(tableNode, "exists-cmd") {
+				if err := cst.SetAny(tableNode, "exists-cmd", data.Storage.ExistsCmd); err != nil {
+					return fmt.Errorf("%w", err)
+				}
 			}
 		}
 		{
-			if err := cst.SetAny(tableNode, "init-cmd", data.Storage.InitCmd); err != nil {
-				return fmt.Errorf("%w", err)
+			if len(data.Storage.InitCmd) > 0 || cst.HasValue(tableNode, "init-cmd") {
+				if err := cst.SetAny(tableNode, "init-cmd", data.Storage.InitCmd); err != nil {
+					return fmt.Errorf("%w", err)
+				}
 			}
 		}
 	}
