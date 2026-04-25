@@ -18,8 +18,18 @@ type Embedder struct {
 	nEmbd int
 }
 
-func NewEmbedder(modelPath string) (*Embedder, error) {
+// NewEmbedder loads a GGUF model and creates a llama context for
+// embedding inference. nCtx <= 0 uses the historical default of 512.
+// poolingType is one of "" (model default), "mean", "cls", "last";
+// any other value returns an error. n_batch / n_ubatch are clamped
+// to the same value as nCtx to keep the context-window invariants
+// consistent.
+func NewEmbedder(modelPath string, nCtx int, poolingType string) (*Embedder, error) {
 	installLlamaLogRedirect()
+
+	if nCtx <= 0 {
+		nCtx = 512
+	}
 
 	cPath := C.CString(modelPath)
 	defer C.free(unsafe.Pointer(cPath))
@@ -31,11 +41,26 @@ func NewEmbedder(modelPath string) (*Embedder, error) {
 	}
 
 	cp := C.llama_context_default_params()
-	cp.n_ctx = 512
-	cp.n_batch = 512
-	cp.n_ubatch = 512
+	cp.n_ctx = C.uint32_t(nCtx)
+	cp.n_batch = C.uint32_t(nCtx)
+	cp.n_ubatch = C.uint32_t(nCtx)
 	cp.n_seq_max = 256 // support multi-sequence batching
 	cp.embeddings = true
+
+	switch poolingType {
+	case "":
+		// Leave llama_context_default_params' default in place
+		// (LLAMA_POOLING_TYPE_UNSPECIFIED = let the model decide).
+	case "mean":
+		cp.pooling_type = C.LLAMA_POOLING_TYPE_MEAN
+	case "cls":
+		cp.pooling_type = C.LLAMA_POOLING_TYPE_CLS
+	case "last":
+		cp.pooling_type = C.LLAMA_POOLING_TYPE_LAST
+	default:
+		C.llama_model_free(model)
+		return nil, fmt.Errorf("unknown pooling type %q (want one of \"\", \"mean\", \"cls\", \"last\")", poolingType)
+	}
 
 	ctx := C.llama_init_from_model(model, cp)
 	if ctx == nil {

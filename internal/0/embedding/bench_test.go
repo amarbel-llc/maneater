@@ -12,7 +12,7 @@ func newBenchEmbedder(b *testing.B) *Embedder {
 	if modelPath == "" {
 		b.Skip("MANPAGE_MODEL_PATH not set")
 	}
-	emb, err := NewEmbedder(modelPath)
+	emb, err := NewEmbedder(modelPath, 0, "")
 	if err != nil {
 		b.Fatalf("NewEmbedder: %v", err)
 	}

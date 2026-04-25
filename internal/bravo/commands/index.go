@@ -36,12 +36,6 @@ func RunIndex(ctx context.Context) error {
 		return fmt.Errorf("loading config: %w", err)
 	}
 
-	modelName, modelCfg, err := config.ActiveModel(cfg)
-	if err != nil {
-		tw.BailOut(err.Error())
-		return err
-	}
-
 	cwd, err := os.Getwd()
 	if err != nil {
 		tw.BailOut(err.Error())
@@ -80,14 +74,16 @@ func RunIndex(ctx context.Context) error {
 		return fmt.Errorf("%s", msg)
 	}
 
-	tw.Comment(fmt.Sprintf("using model %q from %s", modelName, modelCfg.Path))
-
-	emb, err := embedding.NewEmbedder(modelCfg.Path)
-	if err != nil {
-		tw.BailOut(fmt.Sprintf("loading model: %v", err))
-		return fmt.Errorf("loading model: %w", err)
-	}
-	defer emb.Close()
+	// One embedder per model name, lazily loaded as corpora demand
+	// them. Most configs share a model across all corpora, so this
+	// usually loads exactly once; the FDR-0001 "smart profile"
+	// scenario loads two (one for manpages, one for the smart corpus).
+	embedders := make(map[string]*embedding.Embedder)
+	defer func() {
+		for _, e := range embedders {
+			e.Close()
+		}
+	}()
 
 	for _, rc := range corpora {
 		if err := ctx.Err(); err != nil {
@@ -96,6 +92,29 @@ func RunIndex(ctx context.Context) error {
 
 		c := rc.Corpus
 		cc := rc.Config
+
+		modelName, modelCfg, err := config.ActiveModelForCorpus(cfg, cc)
+		if err != nil {
+			tw.BailOut(err.Error())
+			return err
+		}
+		if err := modelCfg.ValidatePooling(); err != nil {
+			tw.BailOut(fmt.Sprintf("model %q: %v", modelName, err))
+			return err
+		}
+
+		emb, ok := embedders[modelName]
+		if !ok {
+			tw.Comment(fmt.Sprintf("loading model %q from %s (n-ctx=%d, pooling=%q)",
+				modelName, modelCfg.Path, modelCfg.ResolvedNCtx(), modelCfg.Pooling))
+			emb, err = embedding.NewEmbedder(modelCfg.Path, modelCfg.NCtx, modelCfg.Pooling)
+			if err != nil {
+				tw.BailOut(fmt.Sprintf("loading model %q: %v", modelName, err))
+				return fmt.Errorf("loading model %q: %w", modelName, err)
+			}
+			embedders[modelName] = emb
+		}
+
 		cfgHash := config.Hash(modelCfg, cc)
 		dataDir := indexDataDir(c.Name(), cfgHash)
 

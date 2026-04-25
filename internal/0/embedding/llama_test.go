@@ -11,7 +11,7 @@ func TestEmbedProducesNonZeroOutput(t *testing.T) {
 		t.Skip("MANPAGE_MODEL_PATH not set")
 	}
 
-	emb, err := NewEmbedder(modelPath)
+	emb, err := NewEmbedder(modelPath, 0, "")
 	if err != nil {
 		t.Fatalf("NewEmbedder: %v", err)
 	}
@@ -48,7 +48,7 @@ func TestEmbedSimilarQueriesMoreSimilar(t *testing.T) {
 		t.Skip("MANPAGE_MODEL_PATH not set")
 	}
 
-	emb, err := NewEmbedder(modelPath)
+	emb, err := NewEmbedder(modelPath, 0, "")
 	if err != nil {
 		t.Fatalf("NewEmbedder: %v", err)
 	}

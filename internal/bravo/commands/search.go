@@ -134,8 +134,12 @@ func (s *searcher) ensureSearchReady() error {
 		s.modelCfg = model
 	}
 
+	if err := s.modelCfg.ValidatePooling(); err != nil {
+		return fmt.Errorf("model %q: %w", s.modelName, err)
+	}
+
 	if s.embedder == nil {
-		emb, err := embedding.NewEmbedder(s.modelCfg.Path)
+		emb, err := embedding.NewEmbedder(s.modelCfg.Path, s.modelCfg.NCtx, s.modelCfg.Pooling)
 		if err != nil {
 			return fmt.Errorf("loading embedding model: %w", err)
 		}
