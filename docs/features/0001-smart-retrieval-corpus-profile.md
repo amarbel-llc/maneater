@@ -1,5 +1,5 @@
 ---
-status: proposed
+status: experimental
 date: 2026-04-25
 promotion-criteria: |
   Promote to `experimental` when a working `[[corpora]]` entry with
@@ -177,16 +177,43 @@ paths = ["~/refs/rfcs/*.txt"]
   fix is to define a second `[models.X]` with the same path and a
   different pooling value.
 
+## Implementation status (experimental, 2026-04-25)
+
+The schema additions, embedder plumbing, and reference profile are
+landed. End-to-end smoke against this repo's `docs/**/*.md` corpus
+with Qwen3-Embedding-4B Q8_0 at n-ctx=4096 + pooling=last:
+
+| Step | Wall-clock | Outcome |
+|---|---|---|
+| `init-store` | 0.05 s | ok |
+| `index --force` (cold) | **142 s** | 5/5 docs embedded, no failures |
+| `index` (warm) | **5.4 s** | 5/5 reused — true no-op |
+| `search "how does the cache invalidate"` | 8.1 s | #1 cache-design.md (0.46), #2 cache-plan.md (0.35) |
+| `search "feature design record"` | 7.9 s | #1 0001-smart-retrieval-corpus-profile.md (0.21) |
+| `search "embedding model context length"` | 7.7 s | #1 0001-smart-retrieval-corpus-profile.md (0.52) |
+
+Cold index ≈ 28 s/doc on CPU at 4K context; per-search latency is
+dominated by model load (~7 s of each ~8 s figure). All three queries
+put the expected doc at #1.
+
+Reproduce with `just smart-profile-smoke`.
+
 ## More Information
 
-- The current llama.cpp embedder lives in
-  `internal/0/embedding/llama.go`; this design implies plumbing
-  `n-ctx` and pooling through `NewEmbedder` rather than the current
-  hard-coded `cp.n_ctx = 512`.
-- The current `ActiveModel(cfg)` in `internal/0/config/config.go`
-  returns one global model; this design implies a per-corpus
-  resolution (e.g. `ActiveModelForCorpus(cfg, corpusName)`).
-- Confighash currently folds in model path, document prefix, and
-  corpus max-chars (`internal/0/config/confighash.go`); this design
-  adds n-ctx, pooling, and the corpus's chosen model name as
-  cache-invalidating inputs.
+- The llama.cpp embedder lives in `internal/0/embedding/llama.go`. The
+  encode-vs-decode dispatch and KV-cache reset between embeds are
+  modeled as a `batchStrategy` interface with `encoderStrategy` and
+  `decoderStrategy` impls — selected at `NewEmbedder` time via
+  `llama_model_has_encoder(model)`.
+- `ActiveModelForCorpus(cfg, corpus)` in `internal/0/config/config.go`
+  is the per-corpus resolver. `ActiveModel(cfg)` remains for callers
+  that don't have corpus context.
+- `internal/0/config/confighash.go` folds in `model.Path`,
+  `model.DocumentPrefix`, `model.NCtx` (resolved), `model.Pooling`,
+  `corpus.MaxChars`, and `corpus.Model` so cache invalidates on any
+  embedding-affecting change.
+- Open follow-ups discovered during the smoke test: maneater#22
+  (failed embeds re-attempted on every warm pass instead of memoized)
+  and maneater#23 (failed embeds counted toward the success tally).
+  Neither blocks `experimental` but both should land before
+  `accepted`.
