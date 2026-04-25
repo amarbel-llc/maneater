@@ -53,16 +53,18 @@ func (encoderStrategy) RunBatch(ctx *C.struct_llama_context, batch C.struct_llam
 }
 
 // decoderStrategy handles decoder-only LLM-as-encoder architectures
-// (Qwen3-Embedding, e5-mistral, etc.). PrepareForEmbed will clear the
-// KV cache once the corresponding C call is wired; the stub left here
-// keeps the interface complete without changing behavior in this
-// commit.
+// (Qwen3-Embedding, e5-mistral, etc.). Each llama_decode call writes
+// to the KV cache; without resetting between embeds, position state
+// from prior calls leaks into the next and produces "llama batch
+// failed: -1" once the cache is exhausted. PrepareForEmbed clears
+// the cache so each Embed call starts with a clean slate.
 type decoderStrategy struct{}
 
-func (decoderStrategy) PrepareForEmbed(*C.struct_llama_context) {
-	// TODO(fdr-0001): C.llama_kv_self_clear(ctx) (or legacy
-	// C.llama_kv_cache_clear) — separate commit so this refactor is
-	// behavior-neutral and bisects cleanly.
+func (decoderStrategy) PrepareForEmbed(ctx *C.struct_llama_context) {
+	// data=false clears metadata only (positions, sequence ids).
+	// The data buffers are reused; for the embedding workload that's
+	// the cheaper and sufficient reset.
+	C.llama_memory_clear(C.llama_get_memory(ctx), C.bool(false))
 }
 
 func (decoderStrategy) RunBatch(ctx *C.struct_llama_context, batch C.struct_llama_batch) C.int32_t {
