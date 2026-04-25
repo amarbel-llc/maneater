@@ -63,6 +63,43 @@ gguf-sri-hash url:
   fi
   nix hash convert --to sri --hash-algo sha256 "$hex"
 
+# Snapshot HF's GGUF + feature-extraction model list for offline
+# analysis. Reusable for "what's currently shipping as GGUF embedding"
+# surveys; output lands at .tmp/hf-gguf-embed.json by default.
+[group('explore')]
+hf-gguf-embed url='https://huggingface.co/api/models?filter=gguf,feature-extraction&full=false&limit=1000&sort=downloads&direction=-1' out='.tmp/hf-gguf-embed.json':
+  curl -sSL "{{url}}" -o "{{out}}"
+  echo "Saved $(wc -c < {{out}}) bytes to {{out}}"
+  echo "Records: $(jq 'length' {{out}})"
+
+# Companion to hf-gguf-embed: fetches results 1001-2000 (the API caps
+# limit=1000, so we paginate via skip).
+[group('explore')]
+hf-gguf-embed-page2:
+  curl -sSL 'https://huggingface.co/api/models?filter=gguf,feature-extraction&full=false&limit=1000&sort=downloads&direction=-1&skip=1000' -o .tmp/hf-gguf-embed-page2.json
+  echo "Records: $(jq 'length' .tmp/hf-gguf-embed-page2.json)"
+
+# Cross-check using `?other=` instead of `?filter=`. HF's two filter
+# modes return different populations; comparing them surfaces tag
+# mismatches.
+[group('explore')]
+hf-gguf-embed-other:
+  curl -sSL 'https://huggingface.co/api/models?other=gguf,feature-extraction&full=false&limit=1000&sort=downloads&direction=-1' -o .tmp/hf-gguf-embed-other.json
+  echo "Records: $(jq 'length' .tmp/hf-gguf-embed-other.json)"
+
+# Just the headers — useful for confirming pagination cursors and
+# rate-limit info before pulling the body.
+[group('explore')]
+hf-gguf-embed-headers:
+  curl -sSLI 'https://huggingface.co/api/models?filter=gguf,feature-extraction&full=false&limit=1000&sort=downloads&direction=-1'
+
+# Concatenate page1 + page2 snapshots into a single JSON array for jq
+# aggregations across the merged set.
+[group('explore')]
+hf-gguf-embed-merge:
+  jq -s 'add' .tmp/hf-gguf-embed.json .tmp/hf-gguf-embed-page2.json > .tmp/hf-gguf-embed-all.json
+  echo "Total: $(jq 'length' .tmp/hf-gguf-embed-all.json)"
+
 [group('explore')]
 man-tree:
   mkdir -p build/man/man1 build/man/man5
