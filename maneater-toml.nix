@@ -9,13 +9,15 @@ let
 
   # Smart-retrieval reference profile. See
   # docs/features/0001-smart-retrieval-corpus-profile.md.
-  # n-ctx and pooling are added once the schema additions land
-  # (FDR tasks 3 + 5).
+  # n-ctx capped at 4096 (per FDR; the model itself supports 32K) and
+  # pooling = "last" because Qwen3-Embedding is decoder-LLM-derived.
   qwen3EmbeddingStanza = ''
     [models.qwen3-embedding-4b]
     path = "${qwen3-embedding-4b-model}"
     query-prefix = "Instruct: Given a search query, retrieve relevant passages that answer the query.\nQuery: "
     document-prefix = ""
+    n-ctx = 4096
+    pooling = "last"
   '';
 in
 {

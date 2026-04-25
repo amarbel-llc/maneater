@@ -66,6 +66,82 @@ gguf-sri-hash url:
 # Snapshot HF's GGUF + feature-extraction model list for offline
 # analysis. Reusable for "what's currently shipping as GGUF embedding"
 # surveys; output lands at .tmp/hf-gguf-embed.json by default.
+# Smoke-test the FDR-0001 smart-retrieval corpus profile end-to-end:
+# index this repo's docs/ tree with Qwen3-Embedding-4B at 4K context
+# and run a couple of search queries against it. Times each step so
+# the cold-start and per-query latency footprints are visible.
+#
+# First run downloads the Qwen3 Q8_0 GGUF (~4 GB) via nix and warms
+# the model into RAM. Subsequent runs hit the page cache. Indexing
+# ~5 markdown docs in this repo is the entire corpus on purpose:
+# the FDR's framing is small, focused corpora.
+#
+# See docs/features/0001-smart-retrieval-corpus-profile.md.
+[group('explore')]
+smart-profile-smoke: build-wrapped
+  #!/usr/bin/env bash
+  set -euo pipefail
+
+  ROOT="$(mktemp -d /tmp/maneater-smart-smoke.XXXXXX)"
+  trap 'rm -rf "$ROOT"' EXIT
+
+  HOME_DIR="$ROOT/home"
+  mkdir -p "$HOME_DIR/.config/maneater" "$HOME_DIR/.local/share" "$HOME_DIR/.cache"
+
+  # Project-local maneater.toml flips the default to qwen3-embedding-4b
+  # and points one corpus at this repo's docs/ tree. The base wrapped
+  # config (which defines [models.qwen3-embedding-4b] and
+  # [models.snowflake]) is inherited via $MANEATER_CONFIG.
+  # Project-local config inherits [models.*] from the base wrapped
+  # config (n-ctx + pooling already set there). We only need to flip
+  # the default and declare the corpus.
+  cat >"$HOME_DIR/maneater.toml" <<EOF
+  default = "qwen3-embedding-4b"
+
+  [[corpora]]
+  name = "smart-docs"
+  type = "files"
+  paths = ["{{justfile_directory()}}/docs/**/*.md"]
+  max-chars = 0
+  model = "qwen3-embedding-4b"
+  EOF
+
+  MANEATER="{{justfile_directory()}}/build/result-wrapped/bin/maneater"
+  export HOME="$HOME_DIR"
+  export XDG_DATA_HOME="$HOME_DIR/.local/share"
+  export XDG_CACHE_HOME="$HOME_DIR/.cache"
+  export XDG_CONFIG_HOME="$HOME_DIR/.config"
+  export MADDER_CEILING_DIRECTORIES="$ROOT"
+  # Intentionally leave MANEATER_CONFIG unset so the wrapper supplies
+  # the BASE config (which defines both [models.snowflake] and
+  # [models.qwen3-embedding-4b]). MANEATER_TEST_CONFIG only has
+  # snowflake, so it would break the qwen3 reference.
+
+  cd "$HOME_DIR"
+
+  echo "==> init-store"
+  /usr/bin/time -f '  %e seconds' "$MANEATER" init-store
+
+  echo
+  echo "==> index (cold; loads model + embeds every doc)"
+  /usr/bin/time -f '  %e seconds' "$MANEATER" index --force
+
+  echo
+  echo "==> index (warm; should be a no-op via incremental cache)"
+  /usr/bin/time -f '  %e seconds' "$MANEATER" index
+
+  echo
+  echo "==> search 'how does the cache invalidate' --top-k 3"
+  /usr/bin/time -f '  %e seconds' "$MANEATER" search "how does the cache invalidate" --top-k 3 || true
+
+  echo
+  echo "==> search 'feature design record' --top-k 3"
+  /usr/bin/time -f '  %e seconds' "$MANEATER" search "feature design record" --top-k 3 || true
+
+  echo
+  echo "==> search 'embedding model context length' --top-k 3"
+  /usr/bin/time -f '  %e seconds' "$MANEATER" search "embedding model context length" --top-k 3 || true
+
 [group('explore')]
 hf-gguf-embed url='https://huggingface.co/api/models?filter=gguf,feature-extraction&full=false&limit=1000&sort=downloads&direction=-1' out='.tmp/hf-gguf-embed.json':
   curl -sSL "{{url}}" -o "{{out}}"
