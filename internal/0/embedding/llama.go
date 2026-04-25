@@ -12,25 +12,61 @@ import (
 )
 
 type Embedder struct {
-	model      *C.struct_llama_model
-	ctx        *C.struct_llama_context
-	vocab      *C.struct_llama_vocab
-	nEmbd      int
-	nCtx       int
-	hasEncoder bool // false ⇒ decoder-only LLM-as-encoder; route batch through llama_decode
+	model    *C.struct_llama_model
+	ctx      *C.struct_llama_context
+	vocab    *C.struct_llama_vocab
+	nEmbd    int
+	nCtx     int
+	strategy batchStrategy
 }
 
-// runBatch dispatches to llama_encode for true encoder models
-// (BERT-family) and llama_decode for decoder-only models that produce
-// embeddings via the embedding head (Qwen3-Embedding, e5-mistral, etc.).
-// Calling llama_encode against a model with no encoder block null-derefs
-// inside libllama; calling llama_decode against a true encoder is just
-// inefficient. Mirrors examples/embedding/embedding.cpp upstream.
-func (e *Embedder) runBatch(batch C.struct_llama_batch) C.int32_t {
-	if e.hasEncoder {
-		return C.llama_encode(e.ctx, batch)
-	}
-	return C.llama_decode(e.ctx, batch)
+// batchStrategy abstracts the encode-vs-decode divergence between
+// true encoder models (BERT-family — snowflake-arctic-embed,
+// nomic-embed-text) and decoder-only LLM-as-encoder models
+// (Qwen3-Embedding, e5-mistral). Calling llama_encode against a model
+// with no encoder block null-derefs inside libllama, and decoder
+// models additionally need their KV cache cleared between embeds so
+// state from the prior call doesn't leak into the next. All other
+// embedding code (tokenize, batch build, get-embeddings, L2
+// normalize) is architecture-agnostic.
+type batchStrategy interface {
+	// PrepareForEmbed runs any per-call setup the strategy requires
+	// before submitting a batch. Decoder-mode strategies clear the
+	// KV cache here; encoder-mode strategies have nothing to do.
+	PrepareForEmbed(ctx *C.struct_llama_context)
+
+	// RunBatch submits a populated llama_batch to the model and
+	// returns the C return code. Implementations dispatch to
+	// llama_encode (true encoders) or llama_decode (decoder-only).
+	RunBatch(ctx *C.struct_llama_context, batch C.struct_llama_batch) C.int32_t
+}
+
+// encoderStrategy handles true encoder architectures (BERT-family).
+// llama_encode is stateless wrt the KV cache, so PrepareForEmbed has
+// nothing to do.
+type encoderStrategy struct{}
+
+func (encoderStrategy) PrepareForEmbed(*C.struct_llama_context) {}
+
+func (encoderStrategy) RunBatch(ctx *C.struct_llama_context, batch C.struct_llama_batch) C.int32_t {
+	return C.llama_encode(ctx, batch)
+}
+
+// decoderStrategy handles decoder-only LLM-as-encoder architectures
+// (Qwen3-Embedding, e5-mistral, etc.). PrepareForEmbed will clear the
+// KV cache once the corresponding C call is wired; the stub left here
+// keeps the interface complete without changing behavior in this
+// commit.
+type decoderStrategy struct{}
+
+func (decoderStrategy) PrepareForEmbed(*C.struct_llama_context) {
+	// TODO(fdr-0001): C.llama_kv_self_clear(ctx) (or legacy
+	// C.llama_kv_cache_clear) — separate commit so this refactor is
+	// behavior-neutral and bisects cleanly.
+}
+
+func (decoderStrategy) RunBatch(ctx *C.struct_llama_context, batch C.struct_llama_batch) C.int32_t {
+	return C.llama_decode(ctx, batch)
 }
 
 // NewEmbedder loads a GGUF model and creates a llama context for
@@ -85,15 +121,19 @@ func NewEmbedder(modelPath string, nCtx int, poolingType string) (*Embedder, err
 
 	vocab := C.llama_model_get_vocab(model)
 	nEmbd := int(C.llama_model_n_embd(model))
-	hasEncoder := bool(C.llama_model_has_encoder(model))
+
+	var strategy batchStrategy = decoderStrategy{}
+	if bool(C.llama_model_has_encoder(model)) {
+		strategy = encoderStrategy{}
+	}
 
 	return &Embedder{
-		model:      model,
-		ctx:        ctx,
-		vocab:      vocab,
-		nEmbd:      nEmbd,
-		nCtx:       nCtx,
-		hasEncoder: hasEncoder,
+		model:    model,
+		ctx:      ctx,
+		vocab:    vocab,
+		nEmbd:    nEmbd,
+		nCtx:     nCtx,
+		strategy: strategy,
 	}, nil
 }
 
@@ -157,7 +197,8 @@ func (e *Embedder) Embed(text string) ([]float32, error) {
 	// Mark last token for output
 	logitsSlice[nTokens-1] = 1
 
-	if ret := e.runBatch(batch); ret != 0 {
+	e.strategy.PrepareForEmbed(e.ctx)
+	if ret := e.strategy.RunBatch(e.ctx, batch); ret != 0 {
 		return nil, fmt.Errorf("llama batch failed: %d", ret)
 	}
 
@@ -304,7 +345,8 @@ func (e *Embedder) BatchEmbed(texts []string) ([][]float32, error) {
 		logitsSlice[idx-1] = 1
 	}
 
-	if ret := e.runBatch(batch); ret != 0 {
+	e.strategy.PrepareForEmbed(e.ctx)
+	if ret := e.strategy.RunBatch(e.ctx, batch); ret != 0 {
 		return nil, fmt.Errorf("llama batch failed: %d", ret)
 	}
 
