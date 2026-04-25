@@ -35,6 +35,34 @@ check-dagnabit:
 codemod-dagnabit:
   dagnabit -v internal
 
+# Look up the SRI sha256 of a HuggingFace LFS file (e.g. a GGUF model
+# weight) without downloading the file. Reads the git-LFS OID via the
+# HF tree API and converts it to nix SRI format. Useful when adding or
+# updating a fetchGgufModel entry in flake.nix.
+#
+# Usage:
+#   just gguf-sri-hash https://huggingface.co/Qwen/Qwen3-Embedding-4B-GGUF/resolve/main/Qwen3-Embedding-4B-Q8_0.gguf
+[group('dev')]
+gguf-sri-hash url:
+  #!/usr/bin/env bash
+  set -euo pipefail
+  url="{{url}}"
+  if [[ ! "$url" =~ ^https://huggingface\.co/([^/]+)/([^/]+)/resolve/([^/]+)/(.+)$ ]]; then
+    echo "URL must look like https://huggingface.co/<owner>/<repo>/resolve/<branch>/<filename>" >&2
+    exit 1
+  fi
+  owner="${BASH_REMATCH[1]}"
+  repo="${BASH_REMATCH[2]}"
+  branch="${BASH_REMATCH[3]}"
+  filename="${BASH_REMATCH[4]}"
+  api="https://huggingface.co/api/models/${owner}/${repo}/tree/${branch}"
+  hex=$(curl -sSL "$api" | jq -r --arg fn "$filename" '.[] | select(.path == $fn) | .lfs.oid // empty')
+  if [[ -z "$hex" ]]; then
+    echo "no LFS OID found for $filename in $api (file may not be LFS-stored)" >&2
+    exit 1
+  fi
+  nix hash convert --to sri --hash-algo sha256 "$hex"
+
 [group('explore')]
 man-tree:
   mkdir -p build/man/man1 build/man/man5

@@ -65,7 +65,17 @@
           sha256 = "sha256-C+gyDssPtuIF8KFBnOPUaINLxE0Cy/2l/RcbNoGxJZc=";
         };
 
-        maneaterTomls = import ./maneater-toml.nix { inherit pkgs snowflake-model; };
+        # Smart-retrieval profile reference model. See
+        # docs/features/0001-smart-retrieval-corpus-profile.md.
+        qwen3-embedding-4b-model = pkgs.fetchGgufModel {
+          name = "qwen3-embedding-4b-q8_0";
+          url = "https://huggingface.co/Qwen/Qwen3-Embedding-4B-GGUF/resolve/main/Qwen3-Embedding-4B-Q8_0.gguf";
+          sha256 = "sha256-tgrlzi3WoLd/gsrfId7x8xCj4QzeOArQCBsHqdQWlJ0=";
+        };
+
+        maneaterTomls = import ./maneater-toml.nix {
+          inherit pkgs snowflake-model qwen3-embedding-4b-model;
+        };
         maneater-test-toml = maneaterTomls.test;
         maneater-base-toml = maneaterTomls.base;
 
