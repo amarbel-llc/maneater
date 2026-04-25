@@ -23,6 +23,13 @@ type ManeaterConfig struct {
 	Corpora []CorpusConfig         `toml:"-"` // decoded manually from [[corpora]]
 }
 
+// CorpusConfig is one [[corpora]] entry. Type, Name, and Paths /
+// ListCmd / ReadCmd are the structural shape; MaxChars, Workers, and
+// the optional hooks are knobs.
+//
+// Model (toml: model) names the [models.<name>] entry to embed this
+// corpus's documents and queries with. Empty falls back to
+// cfg.Default. See FDR-0001 (smart-retrieval corpus profile).
 type CorpusConfig struct {
 	Name       string   `toml:"name"`
 	Type       string   `toml:"type"` // "files" or "command"
@@ -33,6 +40,7 @@ type CorpusConfig struct {
 	HashCmd    []string `toml:"hash-cmd"`    // optional; per-key probe
 	PrepareCmd []string `toml:"prepare-cmd"` // optional; once during Prepare
 	Workers    int      `toml:"workers"`     // 0 or 1 = serial; >1 = worker pool
+	Model      string   `toml:"model"`       // optional; overrides cfg.Default
 }
 
 // ManpathConfig controls how maneater discovers man pages beyond the system
@@ -172,6 +180,10 @@ func DecodeCorpora(doc *ManeaterConfigDocument) []CorpusConfig {
 			case "workers":
 				if v, ok := cst.ExtractInt(kv); ok {
 					cc.Workers = v
+				}
+			case "model":
+				if v, ok := cst.ExtractString(kv); ok {
+					cc.Model = v
 				}
 			}
 		}
@@ -322,6 +334,31 @@ func LoadDefault() (ManeaterConfig, error) {
 	}
 
 	return LoadHierarchy(home, cwd)
+}
+
+// ActiveModelForCorpus returns the model entry that should embed
+// `corpus`'s documents and queries. When corpus.Model is set, that
+// named entry must exist in cfg.Models — an empty fallback is not
+// silently substituted. When corpus.Model is empty, behavior matches
+// ActiveModel(cfg).
+func ActiveModelForCorpus(cfg ManeaterConfig, corpus CorpusConfig) (string, ModelConfig, error) {
+	if corpus.Model == "" {
+		return ActiveModel(cfg)
+	}
+	model, ok := cfg.Models[corpus.Model]
+	if !ok {
+		return "", ModelConfig{}, fmt.Errorf(
+			"corpus %q references model %q which is not defined in [models.*]",
+			corpus.Name, corpus.Model,
+		)
+	}
+	if model.Path == "" {
+		return "", ModelConfig{}, fmt.Errorf(
+			"corpus %q references model %q which has no 'path'",
+			corpus.Name, corpus.Model,
+		)
+	}
+	return corpus.Model, model, nil
 }
 
 // ActiveModel picks the model specified by cfg.Default, or the single model

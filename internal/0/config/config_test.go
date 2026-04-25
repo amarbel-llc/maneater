@@ -603,6 +603,96 @@ func TestModelValidatePoolingAccepts(t *testing.T) {
 	}
 }
 
+func TestParseCorpusModelField(t *testing.T) {
+	input := []byte(`
+[[corpora]]
+name = "project-docs"
+type = "files"
+paths = ["docs/*.md"]
+model = "qwen3-4b"
+`)
+	doc, err := DecodeManeaterConfig(input)
+	if err != nil {
+		t.Fatalf("parse error: %v", err)
+	}
+	corpora := DecodeCorpora(doc)
+	if len(corpora) != 1 {
+		t.Fatalf("got %d corpora, want 1", len(corpora))
+	}
+	if corpora[0].Model != "qwen3-4b" {
+		t.Errorf("Model = %q, want qwen3-4b", corpora[0].Model)
+	}
+}
+
+func TestActiveModelForCorpusOverridesDefault(t *testing.T) {
+	cfg := ManeaterConfig{
+		Default: "small",
+		Models: map[string]ModelConfig{
+			"small": {Path: "/small.gguf"},
+			"big":   {Path: "/big.gguf", NCtx: 4096, Pooling: "last"},
+		},
+	}
+	corpus := CorpusConfig{Name: "smart", Model: "big"}
+
+	name, model, err := ActiveModelForCorpus(cfg, corpus)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if name != "big" {
+		t.Errorf("name = %q, want big", name)
+	}
+	if model.NCtx != 4096 {
+		t.Errorf("NCtx = %d, want 4096", model.NCtx)
+	}
+}
+
+func TestActiveModelForCorpusFallsBackToDefault(t *testing.T) {
+	cfg := ManeaterConfig{
+		Default: "small",
+		Models: map[string]ModelConfig{
+			"small": {Path: "/small.gguf"},
+			"big":   {Path: "/big.gguf"},
+		},
+	}
+	corpus := CorpusConfig{Name: "manpages"} // Model empty
+
+	name, _, err := ActiveModelForCorpus(cfg, corpus)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if name != "small" {
+		t.Errorf("name = %q, want small (default)", name)
+	}
+}
+
+func TestActiveModelForCorpusUndefinedModelErrors(t *testing.T) {
+	cfg := ManeaterConfig{
+		Models: map[string]ModelConfig{
+			"only": {Path: "/only.gguf"},
+		},
+	}
+	corpus := CorpusConfig{Name: "broken", Model: "missing"}
+
+	_, _, err := ActiveModelForCorpus(cfg, corpus)
+	if err == nil {
+		t.Fatal("expected error for undefined model reference")
+	}
+}
+
+func TestActiveModelForCorpusPathlessModelErrors(t *testing.T) {
+	cfg := ManeaterConfig{
+		Models: map[string]ModelConfig{
+			"empty": {Path: ""}, // intentionally pathless
+		},
+	}
+	corpus := CorpusConfig{Name: "broken", Model: "empty"}
+
+	_, _, err := ActiveModelForCorpus(cfg, corpus)
+	if err == nil {
+		t.Fatal("expected error for pathless model")
+	}
+}
+
 func TestModelValidatePoolingRejects(t *testing.T) {
 	for _, p := range []string{"max", "first", "MEAN", " last", "last "} {
 		m := ModelConfig{Pooling: p}
