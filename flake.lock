@@ -513,7 +513,7 @@
       "inputs": {
         "crane": "crane_11",
         "fenix": "fenix_5",
-        "nixpkgs": "nixpkgs_10"
+        "nixpkgs": "nixpkgs_11"
       },
       "locked": {
         "lastModified": 1761780713,
@@ -1135,6 +1135,22 @@
     },
     "nixpkgs_10": {
       "locked": {
+        "lastModified": 1777639957,
+        "narHash": "sha256-N0Qb/WHzovKq+ZLEHAcDXAJpTidIqymKzd84FQLnxyU=",
+        "owner": "NixOS",
+        "repo": "nixpkgs",
+        "rev": "acd02b8771d0546f96ee281ac45c3a6f81b9bfba",
+        "type": "github"
+      },
+      "original": {
+        "owner": "NixOS",
+        "ref": "master",
+        "repo": "nixpkgs",
+        "type": "github"
+      }
+    },
+    "nixpkgs_11": {
+      "locked": {
         "lastModified": 1761468971,
         "narHash": "sha256-vY2OLVg5ZTobdroQKQQSipSIkHlxOTrIF1fsMzPh8w8=",
         "rev": "78e34d1667d32d8a0ffc3eba4591ff256e80576e",
@@ -1147,7 +1163,7 @@
         "url": "https://flakehub.com/f/NixOS/nixpkgs/0"
       }
     },
-    "nixpkgs_11": {
+    "nixpkgs_12": {
       "locked": {
         "lastModified": 1774244481,
         "narHash": "sha256-4XfMXU0DjN83o6HWZoKG9PegCvKvIhNUnRUI19vzTcQ=",
@@ -1270,12 +1286,15 @@
       }
     },
     "nixpkgs_9": {
+      "inputs": {
+        "nixpkgs": "nixpkgs_10"
+      },
       "locked": {
-        "lastModified": 1777042677,
-        "narHash": "sha256-PkHa8cSqjNVD/ug5VNyC0ebwAVRJxvw92FFLWinbdQs=",
+        "lastModified": 1777642091,
+        "narHash": "sha256-zgNLPnbbRZbAQt8uqfo0S2HNr5SXkpINWMv51Vngvzg=",
         "owner": "amarbel-llc",
         "repo": "nixpkgs",
-        "rev": "9bad1e489bd4c713da002618bd825372d35430af",
+        "rev": "ba254c01b25510e63be40e5ed7f65f59eccf020f",
         "type": "github"
       },
       "original": {
@@ -1422,7 +1441,7 @@
         "crane": "crane_10",
         "fh": "fh_5",
         "gomod2nix": "gomod2nix_12",
-        "nixpkgs": "nixpkgs_11",
+        "nixpkgs": "nixpkgs_12",
         "nixpkgs-master": "nixpkgs-master_7",
         "rust-overlay": "rust-overlay_9",
         "utils": "utils_4"
