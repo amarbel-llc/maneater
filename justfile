@@ -183,9 +183,9 @@ man-tree:
   ln -sf ../../../cmd/maneater/maneater.toml.5 build/man/man5/maneater.toml.5
 
 # Run bats integration tests (against the wrapped binary so madder is on its PATH).
-# --no-sandbox opts out of batman's sandcastle wrapper so the wrapped maneater
-# can reach the Metal GPU on darwin for real embedding inference; sandcastle
-# has no metal/gpu passthru yet (see amarbel-llc/bob#106).
+# --no-sandbox bypasses batman's fence (bubblewrap) wrapper so the wrapped
+# maneater can reach the host GPU for real embedding inference; fence has no
+# GPU device passthru.
 [group('test')]
 test-bats: build-wrapped
   MANEATER_BIN={{justfile_directory()}}/build/result-wrapped/bin/maneater bats --no-sandbox zz-tests_bats/

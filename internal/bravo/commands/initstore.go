@@ -5,9 +5,9 @@ import (
 	"fmt"
 	"os"
 
-	tap "github.com/amarbel-llc/bob/packages/tap-dancer/go"
 	"github.com/amarbel-llc/maneater/internal/0/config"
 	"github.com/amarbel-llc/maneater/internal/alfa/storage"
+	tap "github.com/amarbel-llc/tap/go/pkgs/writer"
 )
 
 // RunInitStore initializes the configured blob store (madder by default;
@@ -19,7 +19,7 @@ func RunInitStore(ctx context.Context) error {
 
 	cfg, err := config.LoadDefault()
 	if err != nil {
-		tw.BailOut(fmt.Sprintf("loading config: %v", err))
+		tw.BailOut("loading config: %v", err)
 		return fmt.Errorf("loading config: %w", err)
 	}
 
@@ -28,7 +28,7 @@ func RunInitStore(ctx context.Context) error {
 
 	exists, err := store.Exists(ctx)
 	if err != nil {
-		tw.BailOut(err.Error())
+		tw.BailOut("%s", err.Error())
 		return err
 	}
 	if exists {
@@ -38,7 +38,7 @@ func RunInitStore(ctx context.Context) error {
 	}
 
 	if err := store.Init(ctx); err != nil {
-		tw.BailOut(err.Error())
+		tw.BailOut("%s", err.Error())
 		return err
 	}
 	tw.Ok(fmt.Sprintf("initialized blob store %q", sc.StoreID))

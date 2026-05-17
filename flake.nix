@@ -3,7 +3,7 @@
 
   inputs = {
     nixpkgs.url = "github:amarbel-llc/nixpkgs";
-    nixpkgs-master.url = "github:NixOS/nixpkgs/e2dde111aea2c0699531dc616112a96cd55ab8b5";
+    nixpkgs-master.url = "github:NixOS/nixpkgs/ae921939fcbd44874664477bd1d22543c10a8306";
     utils.url = "https://flakehub.com/f/numtide/flake-utils/0.1.102";
 
     tommy = {
@@ -13,8 +13,8 @@
       inputs.utils.follows = "utils";
     };
 
-    bob = {
-      url = "github:amarbel-llc/bob";
+    bats = {
+      url = "github:amarbel-llc/bats";
       inputs.nixpkgs.follows = "nixpkgs";
       inputs.nixpkgs-master.follows = "nixpkgs-master";
       inputs.utils.follows = "utils";
@@ -41,7 +41,7 @@
       nixpkgs-master,
       utils,
       tommy,
-      bob,
+      bats,
       madder,
       purse-first,
     }:
@@ -177,7 +177,7 @@
             pkgs.ripgrep
             tommy.packages.${system}.default
             madder.packages.${system}.default
-            bob.packages.${system}.batman
+            bats.packages.${system}.batman
             purse-first.packages.${system}.dagnabit
           ];
           MANEATER_TEST_CONFIG = maneater-test-toml;

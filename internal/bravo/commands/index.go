@@ -5,12 +5,12 @@ import (
 	"fmt"
 	"os"
 
-	tap "github.com/amarbel-llc/bob/packages/tap-dancer/go"
 	"github.com/amarbel-llc/maneater/internal/0/config"
 	"github.com/amarbel-llc/maneater/internal/0/embedding"
 	"github.com/amarbel-llc/maneater/internal/0/manifest"
 	"github.com/amarbel-llc/maneater/internal/alfa/corpus"
 	"github.com/amarbel-llc/maneater/internal/alfa/storage"
+	tap "github.com/amarbel-llc/tap/go/pkgs/writer"
 )
 
 // RunIndex embeds every configured corpus and writes the resulting blobs to
@@ -32,25 +32,25 @@ func RunIndex(ctx context.Context) error {
 
 	cfg, err := config.LoadDefault()
 	if err != nil {
-		tw.BailOut(fmt.Sprintf("loading config: %v", err))
+		tw.BailOut("loading config: %v", err)
 		return fmt.Errorf("loading config: %w", err)
 	}
 
 	cwd, err := os.Getwd()
 	if err != nil {
-		tw.BailOut(err.Error())
+		tw.BailOut("%s", err.Error())
 		return err
 	}
 
 	manPaths, err := resolveManpathFromConfig(cfg.Manpath, cwd)
 	if err != nil {
-		tw.BailOut(err.Error())
+		tw.BailOut("%s", err.Error())
 		return err
 	}
 
 	corpora, err := resolveCorpora(cfg, manPaths)
 	if err != nil {
-		tw.BailOut(err.Error())
+		tw.BailOut("%s", err.Error())
 		return err
 	}
 
@@ -65,12 +65,12 @@ func RunIndex(ctx context.Context) error {
 
 	exists, err := store.Exists(ctx)
 	if err != nil {
-		tw.BailOut(fmt.Sprintf("storage exists check: %v", err))
+		tw.BailOut("storage exists check: %v", err)
 		return err
 	}
 	if !exists {
 		msg := fmt.Sprintf("blob store %q is not initialized — run 'maneater init-store' first", sc.StoreID)
-		tw.BailOut(msg)
+		tw.BailOut("%s", msg)
 		return fmt.Errorf("%s", msg)
 	}
 
@@ -95,21 +95,21 @@ func RunIndex(ctx context.Context) error {
 
 		modelName, modelCfg, err := config.ActiveModelForCorpus(cfg, cc)
 		if err != nil {
-			tw.BailOut(err.Error())
+			tw.BailOut("%s", err.Error())
 			return err
 		}
 		if err := modelCfg.ValidatePooling(); err != nil {
-			tw.BailOut(fmt.Sprintf("model %q: %v", modelName, err))
+			tw.BailOut("model %q: %v", modelName, err)
 			return err
 		}
 
 		emb, ok := embedders[modelName]
 		if !ok {
-			tw.Comment(fmt.Sprintf("loading model %q from %s (n-ctx=%d, pooling=%q)",
-				modelName, modelCfg.Path, modelCfg.ResolvedNCtx(), modelCfg.Pooling))
+			tw.Comment("loading model %q from %s (n-ctx=%d, pooling=%q)",
+				modelName, modelCfg.Path, modelCfg.ResolvedNCtx(), modelCfg.Pooling)
 			emb, err = embedding.NewEmbedder(modelCfg.Path, modelCfg.NCtx, modelCfg.Pooling)
 			if err != nil {
-				tw.BailOut(fmt.Sprintf("loading model %q: %v", modelName, err))
+				tw.BailOut("loading model %q: %v", modelName, err)
 				return fmt.Errorf("loading model %q: %w", modelName, err)
 			}
 			embedders[modelName] = emb
@@ -127,15 +127,15 @@ func RunIndex(ctx context.Context) error {
 						for _, e := range cached {
 							existing[e.Key] = e
 						}
-						tw.Comment(fmt.Sprintf("loaded %d entries from blob store for %s",
-							len(existing), c.Name()))
+						tw.Comment("loaded %d entries from blob store for %s",
+							len(existing), c.Name())
 					}
 				}
 			}
 		}
 
 		if err := c.Prepare(); err != nil {
-			tw.BailOut(fmt.Sprintf("preparing corpus %s: %v", c.Name(), err))
+			tw.BailOut("preparing corpus %s: %v", c.Name(), err)
 			return fmt.Errorf("preparing corpus %s: %w", c.Name(), err)
 		}
 
@@ -172,7 +172,7 @@ func RunIndex(ctx context.Context) error {
 					tw.Skip(desc, "reused (hash-cmd match)")
 					continue
 				}
-				tw.Comment(fmt.Sprintf("warning: corpus signaled reuse for %s but no cached entry; skipping", doc.Key))
+				tw.Comment("warning: corpus signaled reuse for %s but no cached entry; skipping", doc.Key)
 				continue
 			}
 
@@ -220,27 +220,27 @@ func RunIndex(ctx context.Context) error {
 
 		blob, err := embedding.MarshalIndexBlob(meta, entries)
 		if err != nil {
-			tw.BailOut(fmt.Sprintf("serializing index blob for %s: %v", c.Name(), err))
+			tw.BailOut("serializing index blob for %s: %v", c.Name(), err)
 			return fmt.Errorf("serializing index blob for %s: %w", c.Name(), err)
 		}
 		digest, err := store.Write(ctx, blob)
 		if err != nil {
-			tw.BailOut(fmt.Sprintf("writing blob for %s: %v", c.Name(), err))
+			tw.BailOut("writing blob for %s: %v", c.Name(), err)
 			return fmt.Errorf("writing blob for %s: %w", c.Name(), err)
 		}
 		if err := manifest.Save(dataDir, manifest.IndexManifest{
 			BlobDigest: digest,
 			ConfigHash: cfgHash,
 		}); err != nil {
-			tw.BailOut(fmt.Sprintf("saving manifest for %s: %v", c.Name(), err))
+			tw.BailOut("saving manifest for %s: %v", c.Name(), err)
 			return fmt.Errorf("saving manifest for %s: %w", c.Name(), err)
 		}
 		if err := embedding.SaveMeta(dataDir, meta); err != nil {
-			tw.Comment(fmt.Sprintf("warning: could not save meta.json: %v", err))
+			tw.Comment("warning: could not save meta.json: %v", err)
 		}
 
-		tw.Comment(fmt.Sprintf("Done: %s — %d entries (%d reused, %d embedded) blob %s",
-			c.Name(), len(entries), reusedCount, embeddedCount, digest))
+		tw.Comment("Done: %s — %d entries (%d reused, %d embedded) blob %s",
+			c.Name(), len(entries), reusedCount, embeddedCount, digest)
 	}
 
 	tw.Plan()
