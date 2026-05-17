@@ -55,19 +55,25 @@ func (s *Store) Write(ctx context.Context, data []byte) (string, error) {
 }
 
 // Exists reports whether the store already appears in `madder list`.
-// The madder list output format is "<store-id>: <type> <characteristic>",
-// one store per line, so we compare against the token before the colon.
+// `madder list` defaults to NDJSON output when stdout is piped (one JSON
+// object per line with at least an "id" field — see madder-list(1)).
 func (s *Store) Exists(ctx context.Context) (bool, error) {
-	listed, err := exec.CommandContext(ctx, "madder", "list").Output()
+	listed, err := exec.CommandContext(ctx, "madder", "list", "-format=ndjson").Output()
 	if err != nil {
 		return false, fmt.Errorf("madder list: %w\nIs madder installed and on PATH?", err)
 	}
 	for _, line := range strings.Split(string(listed), "\n") {
-		name, _, ok := strings.Cut(line, ":")
-		if !ok {
+		line = strings.TrimSpace(line)
+		if line == "" {
 			continue
 		}
-		if strings.TrimSpace(name) == s.StoreID {
+		var rec struct {
+			ID string `json:"id"`
+		}
+		if err := json.Unmarshal([]byte(line), &rec); err != nil {
+			continue
+		}
+		if rec.ID == s.StoreID {
 			return true, nil
 		}
 	}
