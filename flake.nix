@@ -3,7 +3,7 @@
 
   inputs = {
     nixpkgs.url = "github:amarbel-llc/nixpkgs";
-    nixpkgs-master.url = "github:NixOS/nixpkgs/ae921939fcbd44874664477bd1d22543c10a8306";
+    nixpkgs-master.url = "github:NixOS/nixpkgs/d233902339c02a9c334e7e593de68855ad26c4cb";
     utils.url = "https://flakehub.com/f/numtide/flake-utils/0.1.102";
 
     tommy = {
@@ -45,6 +45,18 @@
       madder,
       purse-first,
     }:
+    let
+      # version.env at repo root is the single source of truth for the
+      # release version. Burnt into the binary via the fork's
+      # auto-injected -ldflags (-X main.version / -X main.commit).
+      maneaterVersion = builtins.head (builtins.match
+        ".*MANEATER_VERSION=([^\n]+).*"
+        (builtins.readFile ./version.env));
+      # shortRev for clean builds, dirtyShortRev for dirty working trees
+      # (so devshell builds show `dirty-abcdef` rather than masquerading
+      # as a clean release), "unknown" as a last-resort fallback.
+      maneaterCommit = self.shortRev or self.dirtyShortRev or "unknown";
+    in
     utils.lib.eachDefaultSystem (
       system:
       let
@@ -95,24 +107,33 @@
             && !(pkgs.lib.hasInfix "/.tmp/" path);
         };
 
-        version = "0.6.1";
-
         goAppBase = {
           inherit go;
           src = goSrc;
           modules = ./gomod2nix.toml;
           GOTOOLCHAIN = "local";
+          version = maneaterVersion;
+          commit = maneaterCommit;
         };
 
         maneater-unwrapped = pkgs.buildGoApplication (
           goAppBase
           // {
             pname = "maneater";
-            inherit version;
             subPackages = [ "cmd/maneater" ];
             CGO_ENABLED = "1";
             nativeBuildInputs = [ pkgs.pkg-config ];
             buildInputs = [ pkgs.llama-cpp ];
+            # checkPhase mirrors madder/go/default.nix:159-163. The default
+            # goCheckHook only tests subPackages (cmd/* dirs with no tests);
+            # this override runs the full unit-test surface inside the
+            # build sandbox. CGO + llama-cpp are already in buildInputs.
+            doCheck = true;
+            checkPhase = ''
+              runHook preCheck
+              go test -p $NIX_BUILD_CORES ./...
+              runHook postCheck
+            '';
           }
         );
 
@@ -123,11 +144,52 @@
           goAppBase
           // {
             pname = "maneater-man";
-            inherit version;
             subPackages = [ "cmd/maneater-man" ];
             CGO_ENABLED = "0";
+            # maneater-unwrapped's checkPhase already runs the full Go
+            # suite; re-running it here would double the test cost for
+            # every default build.
+            doCheck = false;
           }
         );
+
+        # maneater-gen runs `go generate` against the source tree inside
+        # a nix sandbox and emits the generated config_tommy.go. The
+        # justfile `generate` recipe copies the result back into
+        # internal/0/config/. Keeps `go generate` out of host-side
+        # justfile recipes.
+        #
+        # Piggybacks on maneater-man-unwrapped so the gomod2nix vendor
+        # cache is already wired up (`tommy generate` imports the tommy
+        # CST package and would otherwise try to fetch modules over the
+        # network, which the build sandbox forbids). Build/install phases
+        # are replaced; we don't ship the cmd/maneater-man binary from
+        # this derivation.
+        maneater-gen = maneater-man-unwrapped.overrideAttrs (old: {
+          pname = "maneater-gen";
+          nativeBuildInputs = (old.nativeBuildInputs or [ ]) ++ [
+            tommy.packages.${system}.default
+            pkgs-master.gofumpt
+            pkgs-master.gotools # provides goimports
+          ];
+          # After codegen, run goimports + gofumpt so the emitted
+          # config_tommy.go matches what the `fmt` recipe would produce;
+          # otherwise `just generate` then `just test` would dirty the
+          # working tree with formatting diffs the user didn't request.
+          buildPhase = ''
+            runHook preBuild
+            go generate ./internal/0/config
+            goimports -w internal/0/config/config_tommy.go
+            gofumpt -w internal/0/config/config_tommy.go
+            runHook postBuild
+          '';
+          installPhase = ''
+            runHook preInstall
+            mkdir -p $out
+            cp internal/0/config/config_tommy.go $out/
+            runHook postInstall
+          '';
+        });
 
         goEnv = pkgs.mkGoEnv {
           pwd = ./.;
@@ -158,7 +220,12 @@
       in
       {
         packages = {
-          inherit maneater maneater-unwrapped maneater-man-unwrapped;
+          inherit
+            maneater
+            maneater-unwrapped
+            maneater-man-unwrapped
+            maneater-gen
+            ;
           default = maneater;
         };
 

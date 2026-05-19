@@ -1,17 +1,26 @@
 # Build, test, and check
 default: build test test-bats check-dagnabit
 
-# Build maneater binary
-build: generate
-  go build -o build/maneater ./cmd/maneater
+# Build unwrapped maneater binary via nix. Output at build/result/bin/maneater.
+# Wrapped variant (with madder/mandoc/pandoc/tldr on PATH) is `just build-wrapped`.
+build:
+  nix build --out-link build/result .#maneater-unwrapped
 
-# Run all tests
+# Run all Go tests via nix. The maneater-unwrapped derivation's checkPhase runs
+# `go test ./...` inside the build sandbox; `--rebuild` forces re-execution
+# even when the store path is cached, and `-L` streams check output so test
+# logs are visible.
 test: fmt
-  go test ./...
+  nix build -L --rebuild .#maneater-unwrapped
 
-# Run go generate (regenerate config_tommy.go)
+# Regenerate config_tommy.go via nix codegen lane. The maneater-gen derivation
+# runs `go generate ./internal/0/config` inside the build sandbox (where the
+# gomod2nix vendor cache is already wired up), then we copy the result back
+# into the working tree.
 generate:
-  go generate ./...
+  nix build --out-link build/gen .#maneater-gen
+  cp build/gen/config_tommy.go internal/0/config/config_tommy.go
+  chmod u+w internal/0/config/config_tommy.go
 
 # Regenerate gomod2nix.toml
 gomod2nix:

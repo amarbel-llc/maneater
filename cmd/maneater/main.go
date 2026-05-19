@@ -15,9 +15,22 @@ import (
 //go:embed maneater.1 maneater.toml.5
 var embeddedManpages embed.FS
 
+// version.env at the repo root is the single source of truth for the version
+// string; the amarbel-llc nixpkgs fork's buildGoApplication auto-injects
+// `-X main.version=$MANEATER_VERSION` and `-X main.commit=$shortRev` ldflags
+// on every subPackage. Defaults below are what `go run`/`go build` outside
+// nix produces.
+var (
+	version = "dev"
+	commit  = "unknown"
+)
+
 func newApp() *command.App {
 	app := command.NewApp("maneater", "Man page search index and semantic search CLI")
-	app.Version = "0.6.0"
+	app.Version = version
+	if commit != "unknown" && commit != "" {
+		app.Version = version + "+" + commit
+	}
 	app.Description.Long = "Maneater builds and queries a semantic search index over Unix man pages " +
 		"using vector embeddings. It extracts synopses and tldr descriptions, embeds " +
 		"them with nomic-embed-text-v1.5, and supports ranked search by natural language query."
