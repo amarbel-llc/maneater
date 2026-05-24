@@ -6,6 +6,13 @@
     nixpkgs-master.url = "github:NixOS/nixpkgs/d233902339c02a9c334e7e593de68855ad26c4cb";
     utils.url = "https://flakehub.com/f/numtide/flake-utils/0.1.102";
 
+    tap = {
+      url = "github:amarbel-llc/tap";
+      inputs.nixpkgs.follows = "nixpkgs";
+      inputs.nixpkgs-master.follows = "nixpkgs-master";
+      inputs.utils.follows = "utils";
+    };
+
     tommy = {
       url = "github:amarbel-llc/tommy";
       inputs.nixpkgs.follows = "nixpkgs";
@@ -40,6 +47,7 @@
       nixpkgs,
       nixpkgs-master,
       utils,
+      tap,
       tommy,
       bats,
       madder,
@@ -69,6 +77,15 @@
         };
 
         go = pkgs-master.go_1_26;
+
+        # flake-input-go_mod consumer-half bridge. See gomod.nix and
+        # amarbel-llc/nixpkgs RFC 0001. Threaded into every
+        # buildGoApplication and mkGoEnv call below; a missing call
+        # site silently falls back to organic gomod2nix.toml resolution
+        # and resurrects the lockstep regression.
+        goFlakeInputs = import ./gomod.nix {
+          inherit tap tommy purse-first system;
+        };
 
         snowflake-model = pkgs.fetchGgufModel {
           name = "snowflake-arctic-embed-l-v2.0-q8_0";
@@ -108,7 +125,7 @@
         };
 
         goAppBase = {
-          inherit go;
+          inherit go goFlakeInputs;
           src = goSrc;
           modules = ./gomod2nix.toml;
           GOTOOLCHAIN = "local";
@@ -193,7 +210,7 @@
 
         goEnv = pkgs.mkGoEnv {
           pwd = ./.;
-          inherit go;
+          inherit go goFlakeInputs;
         };
 
         maneater =
