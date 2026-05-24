@@ -244,6 +244,7 @@
             pkgs.ripgrep
             tommy.packages.${system}.default
             madder.packages.${system}.default
+            bats.packages.${system}.bats
             bats.packages.${system}.batman
             purse-first.packages.${system}.dagnabit
           ];
