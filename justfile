@@ -1,5 +1,8 @@
-# Build, test, and check
-default: build build-devshell test test-bats check-dagnabit
+default: build verify test
+
+verify: verify-devshell check-dagnabit
+
+test: test-go test-bats
 
 # Build unwrapped maneater binary via nix. Output at build/result/bin/maneater.
 # Wrapped variant (with madder/mandoc/pandoc/tldr on PATH) is `just build-wrapped`.
@@ -10,7 +13,8 @@ build:
 # `go test ./...` inside the build sandbox; `--rebuild` forces re-execution
 # even when the store path is cached, and `-L` streams check output so test
 # logs are visible.
-test: fmt
+[group('test')]
+test-go: fmt
   nix build -L --rebuild .#maneater-unwrapped
 
 # Regenerate config_tommy.go via nix codegen lane. The maneater-gen derivation
@@ -35,7 +39,8 @@ build-nix:
 # build can mask (see amarbel-llc/nixpkgs#50). No store-output usage —
 # just a build-check that fails loudly if direnv would refuse to enter
 # the devshell.
-build-devshell:
+[group('post-build')]
+verify-devshell:
   nix build --no-link .#devShells.{{ arch() }}-linux.default
 
 # Build the wrapped maneater (madder + mandoc + pandoc + tldr on its PATH)
