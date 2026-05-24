@@ -6,20 +6,6 @@ schema = 3
     hash = 'sha256-hJsIQ7HraOte83sTUFUQexw4z7vUB/lWEYkR6An+P7Q='
     goVersion = '1.26'
 
-  [mod.'github.com/amarbel-llc/purse-first/libs/go-mcp']
-    version = 'v0.0.12'
-    hash = 'sha256-lE+G+cxMITAOVyfMQCxmRtMa97OiLy2T8yfbn/PIt6U='
-
-  [mod.'github.com/amarbel-llc/tap/go']
-    version = 'v0.1.5'
-    hash = 'sha256-1/iKIx63DQQLTV1DzAY/gL8zZadfE+3ugmrRD88m+us='
-    goVersion = '1.26'
-
-  [mod.'github.com/amarbel-llc/tommy']
-    version = 'v0.2.3'
-    hash = 'sha256-qV9eENXxLHS0ybgzuFJmEsi/0n76HrdcCj2csh9UNOM='
-    goVersion = '1.26'
-
   [mod.'github.com/aymanbagabas/go-osc52/v2']
     version = 'v2.0.1'
     hash = 'sha256-6Bp0jBZ6npvsYcKZGHHIUSVSTAMEyieweAX2YAKDjjg='

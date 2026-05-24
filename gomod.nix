@@ -27,4 +27,8 @@
     src = purse-first.packages.${system}.go-pkgs;
     subPath = "libs/go-mcp";
   };
+  "github.com/amarbel-llc/purse-first/libs/dewey" = {
+    src = purse-first.packages.${system}.go-pkgs;
+    subPath = "libs/dewey";
+  };
 }

@@ -662,11 +662,11 @@
         "nixpkgs-master": "nixpkgs-master_6"
       },
       "locked": {
-        "lastModified": 1779646110,
-        "narHash": "sha256-w6L8yE7Gd5VvDaL2RW+pCR79PA0T3nz/vXPyWvEm5j0=",
+        "lastModified": 1779649008,
+        "narHash": "sha256-7BA4DFkvvVWlyGZwr75bJq0C4B6ERd4j4D7J1S1I4cc=",
         "owner": "amarbel-llc",
         "repo": "nixpkgs",
-        "rev": "4e83cbff83064b129dfe23b5d258492d1a4b6ea8",
+        "rev": "167942ee2f37a8ba0a8c73ca45c2a8cac039eb08",
         "type": "github"
       },
       "original": {

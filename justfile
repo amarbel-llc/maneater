@@ -1,5 +1,5 @@
 # Build, test, and check
-default: build test test-bats check-dagnabit
+default: build build-devshell test test-bats check-dagnabit
 
 # Build unwrapped maneater binary via nix. Output at build/result/bin/maneater.
 # Wrapped variant (with madder/mandoc/pandoc/tldr on PATH) is `just build-wrapped`.
@@ -29,6 +29,14 @@ gomod2nix:
 # Build nix package
 build-nix:
   nix build --show-trace
+
+# Verify the devShell evaluates and builds without errors. Catches
+# vendor-env / goFlakeInputs / mkGoEnv breakage that the prod-binary
+# build can mask (see amarbel-llc/nixpkgs#50). No store-output usage —
+# just a build-check that fails loudly if direnv would refuse to enter
+# the devshell.
+build-devshell:
+  nix build --no-link .#devShells.{{ arch() }}-linux.default
 
 # Build the wrapped maneater (madder + mandoc + pandoc + tldr on its PATH)
 build-wrapped:

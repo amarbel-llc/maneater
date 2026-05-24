@@ -127,6 +127,7 @@
         goAppBase = {
           inherit go goFlakeInputs;
           src = goSrc;
+          pwd = ./.;
           modules = ./gomod2nix.toml;
           GOTOOLCHAIN = "local";
           version = maneaterVersion;
