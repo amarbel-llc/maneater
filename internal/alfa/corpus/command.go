@@ -19,10 +19,13 @@ import (
 //   - ListCmd outputs one document key per line to stdout (called once).
 //   - ReadCmd receives a key as its final argument and outputs the document
 //     text to stdout. Multiple text chunks may be NUL-separated.
-//   - HashCmd (optional) receives a key and outputs a hex hash. When set, the
-//     corpus probes this first and — if the hash matches prev[key] — yields a
-//     Document with Texts == nil to signal "reuse cached entry" without
-//     running the (expensive) ReadCmd.
+//   - HashCmd (optional) receives a key and outputs a hash. When set and the
+//     output is non-empty, that output is the document hash: the corpus
+//     probes it first and — if it matches prev[key] — yields a Document with
+//     Texts == nil to signal "reuse cached entry" without running the
+//     (expensive) ReadCmd; fresh reads store the same hash so the probe can
+//     hit on the next pass. Blank output falls back to sha256 of the
+//     extracted text.
 //   - PrepareCmd (optional) runs once during Prepare().
 //
 // Workers > 1 enables a worker pool for ReadCmd / HashCmd dispatch, with an
@@ -216,16 +219,22 @@ func (c *CommandCorpus) processKey(
 	prev map[string]string,
 	maxChars int,
 ) (Document, error) {
-	// HashCmd fast-path: if the hash matches prev, signal reuse and skip ReadCmd.
-	if len(c.HashCmd) > 0 && prev != nil {
+	// HashCmd: when configured and returning non-empty output, that
+	// output IS the document hash — both for the fast-path probe and
+	// for the hash stored on a fresh read. Running it only for the
+	// probe while storing the text-sha256 (the old behavior) put prev
+	// in a different hash space than the probe compares against, so
+	// the fast-path never fired in the integrated pipeline.
+	var cmdHash string
+	if len(c.HashCmd) > 0 {
 		hashOut, err := runCmd(ctx, execx.AppendArg(c.HashCmd, key))
 		if err != nil {
 			return Document{}, fmt.Errorf("hash-cmd %s: %w", key, err)
 		}
-		hash := strings.TrimSpace(hashOut)
-		if hash != "" {
-			if prevHash, ok := prev[key]; ok && prevHash == hash {
-				return Document{Key: key, Hash: hash, Texts: nil}, nil
+		cmdHash = strings.TrimSpace(hashOut)
+		if cmdHash != "" && prev != nil {
+			if prevHash, ok := prev[key]; ok && prevHash == cmdHash {
+				return Document{Key: key, Hash: cmdHash, Texts: nil}, nil
 			}
 		}
 	}
@@ -240,15 +249,20 @@ func (c *CommandCorpus) processKey(
 		return Document{}, nil // skip empties
 	}
 
-	h := sha256.Sum256([]byte(trimmed))
-	hashHex := hex.EncodeToString(h[:])
+	// Blank HashCmd output (or no HashCmd) falls back to hashing the
+	// extracted text, preserving post-hoc reuse for such corpora.
+	hash := cmdHash
+	if hash == "" {
+		h := sha256.Sum256([]byte(trimmed))
+		hash = hex.EncodeToString(h[:])
+	}
 
 	chunks := splitChunks(trimmed, maxChars)
 	if len(chunks) == 0 {
 		return Document{}, nil
 	}
 
-	return Document{Key: key, Hash: hashHex, Texts: chunks}, nil
+	return Document{Key: key, Hash: hash, Texts: chunks}, nil
 }
 
 // splitKeys parses newline-separated stdout into a list of non-empty keys.

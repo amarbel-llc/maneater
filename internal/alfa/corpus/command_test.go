@@ -224,6 +224,78 @@ func TestCommandCorpusHashCmdReuse(t *testing.T) {
 	}
 }
 
+// TestCommandCorpusHashCmdHashStored is the round-trip the hash
+// fast-path depends on: a fresh read must store the HashCmd output as
+// the document hash, so that feeding the first pass's hashes back as
+// prev yields reuse sentinels on the second pass. Storing the
+// text-sha256 instead (the old behavior) put prev in a different hash
+// space than the probe, and the fast-path never fired.
+func TestCommandCorpusHashCmdHashStored(t *testing.T) {
+	c := &corpus.CommandCorpus{
+		CorpusName: "hash-stored",
+		ListCmd:    []string{"printf", "k1\nk2\n"},
+		ReadCmd:    []string{"sh", "-c", "echo text for \"$1\"", "--"},
+		HashCmd:    []string{"sh", "-c", "printf 'file-hash-%s' \"$1\"", "--"},
+	}
+
+	// Pass 1: no prev — fresh reads must carry the HashCmd hash.
+	docs, errs := collectWithPrev(t, c, nil)
+	if len(errs) > 0 {
+		t.Fatalf("pass 1 errors: %v", errs)
+	}
+	if len(docs) != 2 {
+		t.Fatalf("pass 1: got %d documents, want 2", len(docs))
+	}
+	prev := make(map[string]string, len(docs))
+	for i, doc := range docs {
+		want := "file-hash-" + doc.Key
+		if doc.Hash != want {
+			t.Errorf("pass 1 docs[%d].Hash = %q, want %q (HashCmd output)", i, doc.Hash, want)
+		}
+		if doc.Texts == nil {
+			t.Errorf("pass 1 docs[%d].Texts = nil, want fresh read", i)
+		}
+		prev[doc.Key] = doc.Hash
+	}
+
+	// Pass 2: prev seeded from pass 1 — every doc must be a reuse sentinel.
+	docs, errs = collectWithPrev(t, c, prev)
+	if len(errs) > 0 {
+		t.Fatalf("pass 2 errors: %v", errs)
+	}
+	for i, doc := range docs {
+		if doc.Texts != nil {
+			t.Errorf("pass 2 docs[%d].Texts = %v, want nil (reuse sentinel)", i, doc.Texts)
+		}
+	}
+}
+
+// TestCommandCorpusHashCmdBlankFallsBack: a HashCmd that outputs
+// nothing must not break hashing — the document falls back to the
+// text-sha256, same as a corpus without HashCmd.
+func TestCommandCorpusHashCmdBlankFallsBack(t *testing.T) {
+	c := &corpus.CommandCorpus{
+		CorpusName: "hash-blank",
+		ListCmd:    []string{"printf", "k1\n"},
+		ReadCmd:    []string{"sh", "-c", "echo stable text", "--"},
+		HashCmd:    []string{"sh", "-c", "printf ''", "--"},
+	}
+
+	docs, errs := collectWithPrev(t, c, nil)
+	if len(errs) > 0 {
+		t.Fatalf("unexpected errors: %v", errs)
+	}
+	if len(docs) != 1 {
+		t.Fatalf("got %d documents, want 1", len(docs))
+	}
+	if docs[0].Hash == "" {
+		t.Error("Hash is empty, want text-sha256 fallback")
+	}
+	if len(docs[0].Hash) != 64 {
+		t.Errorf("Hash = %q, want 64-char hex sha256 of the text", docs[0].Hash)
+	}
+}
+
 func TestCommandCorpusHashCmdMismatchRunsReadCmd(t *testing.T) {
 	// hash-cmd outputs a fresh hash per key; prev has a stale one. ReadCmd must run.
 	c := &corpus.CommandCorpus{
