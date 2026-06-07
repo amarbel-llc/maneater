@@ -7,8 +7,11 @@ import (
 )
 
 // FromConfig builds a Corpus from a CorpusConfig for the "files" and
-// "command" types. The "manpages" type is handled separately — its
-// dependencies (manpath discovery, mandoc/pandoc) don't belong here.
+// "command" types. The "manpages" type is translated into a command
+// corpus before reaching here (internal/bravo/commands,
+// expandManpagesCorpus) — its dependencies (manpath discovery,
+// maneater-man) don't belong in this package; the default-case
+// rejection below stays as defense for un-expanded configs.
 func FromConfig(cc config.CorpusConfig) (Corpus, error) {
 	switch cc.Type {
 	case "files":

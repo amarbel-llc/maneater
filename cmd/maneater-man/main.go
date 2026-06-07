@@ -1,6 +1,6 @@
-// Package main is maneater-man: the lean companion binary the default
-// manpages corpus (internal/charlie/commands.defaultManpagesCorpusConfig)
-// invokes via type="command" list/hash/read/prepare commands.
+// Package main is maneater-man: the lean companion binary the manpages
+// corpus (internal/bravo/commands.expandManpagesCorpus) invokes via
+// type="command" list/hash/read/prepare commands.
 //
 // It exists as a separate binary so the per-page subprocess spawn cost
 // doesn't drag along the CGO + llama-cpp init that every spawn of the
@@ -117,7 +117,7 @@ func runPrepare() error {
 
 // resolveManpath reads MANEATER_MANPATH (colon-separated); falls back to the
 // same resolution the main binary's index command uses when the env var
-// is unset (rare — resolveCorpora in internal/charlie/commands sets it).
+// is unset (rare — resolveCorpora in internal/bravo/commands sets it).
 func resolveManpath() ([]string, error) {
 	if raw := os.Getenv("MANEATER_MANPATH"); raw != "" {
 		return strings.Split(raw, ":"), nil

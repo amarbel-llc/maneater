@@ -29,7 +29,7 @@ in
     ${qwen3EmbeddingStanza}
     # No [[corpora]] entries: maneater's synthesized default
     # activates a `type = "command"` manpages corpus that shells
-    # out to maneater-man. See internal/charlie/commands.defaultManpagesCorpusConfig.
+    # out to maneater-man. See internal/bravo/commands.expandManpagesCorpus.
     # The qwen3-embedding-4b model is available but only used by
     # corpora that explicitly opt in via `model = "qwen3-embedding-4b"`.
   '';

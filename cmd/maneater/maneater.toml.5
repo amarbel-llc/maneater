@@ -241,7 +241,26 @@ and
 and enriches with
 .Xr tldr 1
 descriptions.
-No additional fields required.
+.Pp
+Optional fields:
+.Va name
+(defaults to
+.Dq manpages ) ,
+.Va max-chars ,
+.Va model ,
+and
+.Va workers
+(defaults to 8).
+The
+.Va paths ,
+.Va list-cmd ,
+.Va read-cmd ,
+.Va hash-cmd ,
+and
+.Va prepare-cmd
+fields are rejected \(em use type
+.Cm command
+for custom commands.
 .Bd -literal -offset indent
 [[corpora]]
 type = "manpages"
@@ -263,7 +282,7 @@ max-chars = 1000
 .Ed
 .Ss command
 Indexes documents produced by external commands.
-.Bl -tag -width "read-cmd"
+.Bl -tag -width "prepare-cmd"
 .It Va list-cmd
 Command array that outputs one document key per line to stdout.
 Required.
@@ -271,6 +290,25 @@ Required.
 Command array that receives a key as its final argument and outputs
 document text to stdout.
 Required.
+.It Va hash-cmd
+Command array that receives a key as its final argument and outputs a
+hash of the document's source.
+When set and the output is non-empty, the output is the stored document
+hash: unchanged documents skip
+.Va read-cmd
+entirely on re-index.
+Blank output falls back to hashing the extracted text.
+Optional.
+.It Va prepare-cmd
+Command array run once before indexing the corpus.
+Optional.
+.It Va workers
+Number of parallel
+.Va read-cmd Ns / Ns Va hash-cmd
+workers.
+Document order (and therefore blob digests) is preserved regardless.
+0 or 1 means serial.
+Optional.
 .El
 .Bd -literal -offset indent
 [[corpora]]

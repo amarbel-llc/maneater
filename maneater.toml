@@ -10,5 +10,5 @@ type = "manpages"
 [[corpora]]
 name = "maneater-src"
 type = "files"
-paths = ["cmd/maneater/*.go", "internal/embedding/*.go"]
+paths = ["cmd/maneater/*.go", "internal/0/embedding/*.go"]
 max-chars = 1000

@@ -50,22 +50,55 @@ func resolveManpathFromConfig(cfg *config.ManpathConfig, cwd string) ([]string, 
 	return manpath.Resolve(include, noAuto, cwd)
 }
 
-// defaultManpagesCorpusConfig synthesizes the CorpusConfig that maneater
-// uses when the user's TOML has no [[corpora]] entries. It is a plain
-// type = "command" corpus that shells out to the lean `maneater-man`
-// companion binary (no CGO, no llama-cpp init cost per subprocess spawn —
-// see maneater#12). Manpath is passed through MANEATER_MANPATH (set by
-// resolveCorpora before this function returns).
-func defaultManpagesCorpusConfig() config.CorpusConfig {
-	return config.CorpusConfig{
-		Name:       "manpages",
-		Type:       "command",
-		ListCmd:    []string{"maneater-man", "list"},
-		ReadCmd:    []string{"maneater-man", "read"},
-		HashCmd:    []string{"maneater-man", "hash"},
-		PrepareCmd: []string{"maneater-man", "prepare"},
-		Workers:    8,
+// expandManpagesCorpus translates a `type = "manpages"` CorpusConfig into
+// the equivalent type = "command" corpus shelling out to the lean
+// `maneater-man` companion binary (no CGO, no llama-cpp init cost per
+// subprocess spawn — see maneater#12). The same expansion (from a zero
+// CorpusConfig) synthesizes the default corpus when the user's TOML has
+// no [[corpora]] entries.
+//
+// User-set Name, Workers, MaxChars, and Model are honored; the command
+// fields are rejected because they would silently fight the synthesized
+// ones. MaxChars and Model pass through UNRESOLVED: config.Hash folds
+// their raw values, and normalizing here would invalidate existing
+// default-corpus cache digests. Manpath is passed through
+// MANEATER_MANPATH (set by resolveCorpora before expansion).
+func expandManpagesCorpus(cc config.CorpusConfig) (config.CorpusConfig, error) {
+	name := cc.Name
+	if name == "" {
+		name = "manpages"
 	}
+
+	conflicts := []struct {
+		set bool
+		key string
+	}{
+		{len(cc.Paths) > 0, "paths"},
+		{len(cc.ListCmd) > 0, "list-cmd"},
+		{len(cc.ReadCmd) > 0, "read-cmd"},
+		{len(cc.HashCmd) > 0, "hash-cmd"},
+		{len(cc.PrepareCmd) > 0, "prepare-cmd"},
+	}
+	for _, c := range conflicts {
+		if c.set {
+			return config.CorpusConfig{}, fmt.Errorf(
+				"corpus %q: type \"manpages\" does not accept %s; use type \"command\" for custom commands",
+				name, c.key,
+			)
+		}
+	}
+
+	out := cc
+	out.Name = name
+	out.Type = "command"
+	out.ListCmd = []string{"maneater-man", "list"}
+	out.ReadCmd = []string{"maneater-man", "read"}
+	out.HashCmd = []string{"maneater-man", "hash"}
+	out.PrepareCmd = []string{"maneater-man", "prepare"}
+	if out.Workers == 0 {
+		out.Workers = 8
+	}
+	return out, nil
 }
 
 func resolveCorpora(cfg config.ManeaterConfig, manPaths []string) ([]resolvedCorpus, error) {
@@ -76,11 +109,18 @@ func resolveCorpora(cfg config.ManeaterConfig, manPaths []string) ([]resolvedCor
 
 	ccs := cfg.Corpora
 	if len(ccs) == 0 {
-		ccs = []config.CorpusConfig{defaultManpagesCorpusConfig()}
+		ccs = []config.CorpusConfig{{Type: "manpages"}}
 	}
 
 	out := make([]resolvedCorpus, 0, len(ccs))
 	for _, cc := range ccs {
+		if cc.Type == "manpages" {
+			expanded, err := expandManpagesCorpus(cc)
+			if err != nil {
+				return nil, err
+			}
+			cc = expanded
+		}
 		c, err := corpus.FromConfig(cc)
 		if err != nil {
 			return nil, fmt.Errorf("corpus %q: %w", cc.Name, err)
