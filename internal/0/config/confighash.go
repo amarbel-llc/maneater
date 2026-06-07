@@ -22,6 +22,10 @@ import (
 //     the model's underlying path)
 //   - model.Truncate (folded in only when true so pre-truncate caches
 //     keep their digests, same trick as ResolvedNCtx)
+//
+// Corpus values are folded RAW (MaxChars, not ResolvedMaxChars): callers
+// that synthesize or expand configs must pass fields through unresolved,
+// or existing cache digests silently change meaning.
 func Hash(model ModelConfig, corpus CorpusConfig) string {
 	h := sha256.New()
 	fmt.Fprintf(h, "model-path:%s\n", model.Path)

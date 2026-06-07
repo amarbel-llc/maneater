@@ -219,12 +219,9 @@ func (c *CommandCorpus) processKey(
 	prev map[string]string,
 	maxChars int,
 ) (Document, error) {
-	// HashCmd: when configured and returning non-empty output, that
-	// output IS the document hash — both for the fast-path probe and
-	// for the hash stored on a fresh read. Running it only for the
-	// probe while storing the text-sha256 (the old behavior) put prev
-	// in a different hash space than the probe compares against, so
-	// the fast-path never fired in the integrated pipeline.
+	// Non-empty HashCmd output is the document hash for both the
+	// fast-path probe and the hash stored on a fresh read (same hash
+	// space, so the probe can hit on the next pass).
 	var cmdHash string
 	if len(c.HashCmd) > 0 {
 		hashOut, err := runCmd(ctx, execx.AppendArg(c.HashCmd, key))
@@ -232,10 +229,8 @@ func (c *CommandCorpus) processKey(
 			return Document{}, fmt.Errorf("hash-cmd %s: %w", key, err)
 		}
 		cmdHash = strings.TrimSpace(hashOut)
-		if cmdHash != "" && prev != nil {
-			if prevHash, ok := prev[key]; ok && prevHash == cmdHash {
-				return Document{Key: key, Hash: cmdHash, Texts: nil}, nil
-			}
+		if cmdHash != "" && prev[key] == cmdHash {
+			return Document{Key: key, Hash: cmdHash, Texts: nil}, nil
 		}
 	}
 

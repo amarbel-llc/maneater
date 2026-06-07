@@ -61,12 +61,15 @@ with a content hash so unchanged documents are not re-embedded on reindex.
 
 ## Corpus Types
 
-- **`manpages`** (default when no `[[corpora]]` defined) -- scans system manpath,
-  extracts synopses via mandoc+pandoc, enriches with tldr descriptions
+- **`manpages`** (default when no `[[corpora]]` defined, or an explicit entry
+  alongside other corpora) -- scans system manpath, extracts synopses via
+  mandoc+pandoc, enriches with tldr descriptions; expanded to a `command`
+  corpus shelling out to maneater-man at resolve time
 - **`files`** -- indexes files matching glob patterns with binary detection and
   configurable truncation (`max-chars`)
 - **`command`** -- indexes output of external commands (`list-cmd` produces keys,
-  `read-cmd` reads a key's text)
+  `read-cmd` reads a key's text; optional `hash-cmd` output is the stored
+  document hash, letting unchanged documents skip `read-cmd` on re-index)
 
 ## Configuration
 

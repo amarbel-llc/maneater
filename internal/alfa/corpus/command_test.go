@@ -239,7 +239,7 @@ func TestCommandCorpusHashCmdHashStored(t *testing.T) {
 	}
 
 	// Pass 1: no prev — fresh reads must carry the HashCmd hash.
-	docs, errs := collectWithPrev(t, c, nil)
+	docs, errs := collectDocuments(t, c)
 	if len(errs) > 0 {
 		t.Fatalf("pass 1 errors: %v", errs)
 	}
@@ -281,7 +281,7 @@ func TestCommandCorpusHashCmdBlankFallsBack(t *testing.T) {
 		HashCmd:    []string{"sh", "-c", "printf ''", "--"},
 	}
 
-	docs, errs := collectWithPrev(t, c, nil)
+	docs, errs := collectDocuments(t, c)
 	if len(errs) > 0 {
 		t.Fatalf("unexpected errors: %v", errs)
 	}

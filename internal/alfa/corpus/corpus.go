@@ -15,8 +15,11 @@ import (
 // corpus has already determined the hash is unchanged via HashCmd and
 // skipped the expensive read).
 type Document struct {
-	Key   string   // unique identifier shown in search results
-	Hash  string   // hex SHA256 of source content for incremental caching
+	Key  string // unique identifier shown in search results
+	Hash string // opaque per-corpus content hash; equality with the
+	// previous run's value means "unchanged". Typically hex sha256 of
+	// the extracted text, but HashCmd corpora store their command's
+	// output verbatim.
 	Texts []string // text chunks to embed; nil = "reuse cached entry"
 }
 

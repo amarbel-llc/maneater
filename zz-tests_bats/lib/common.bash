@@ -43,10 +43,17 @@ init_maneater_store() {
   assert_success
 }
 
-write_test_config() {
+# Skip unless the devshell provides the model config, and wire it in as
+# the base config layer. Call before writing a corpus config.
+require_test_config() {
   if [[ -z ${MANEATER_TEST_CONFIG:-} ]]; then
     skip "MANEATER_TEST_CONFIG not set (run inside nix devshell)"
   fi
+  export MANEATER_CONFIG="$MANEATER_TEST_CONFIG"
+}
+
+write_test_config() {
+  require_test_config
 
   local fixtures_dir="$BATS_TEST_TMPDIR/fixtures"
   mkdir -p "$fixtures_dir"
@@ -66,6 +73,4 @@ type = "files"
 paths = ["$fixtures_dir/*"]
 max-chars = 500
 EOF
-
-  export MANEATER_CONFIG="$MANEATER_TEST_CONFIG"
 }

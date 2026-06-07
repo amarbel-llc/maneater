@@ -43,6 +43,11 @@ func FromConfig(cc config.CorpusConfig) (Corpus, error) {
 			MaxChars:   cc.ResolvedMaxChars(),
 		}, nil
 	default:
+		if cc.Type == "manpages" {
+			// Defense: this type is valid TOML but must be expanded
+			// to a command corpus before reaching the factory.
+			return nil, fmt.Errorf("corpus type %q must be expanded before FromConfig (see internal/bravo/commands.expandManpagesCorpus)", cc.Type)
+		}
 		return nil, fmt.Errorf("unknown corpus type %q", cc.Type)
 	}
 }

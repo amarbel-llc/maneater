@@ -79,9 +79,7 @@ function force_rebuild_reembeds_all { # @test
 # all shell out to sh scripts keyed on a $BLOBS dir. Verifies #8's
 # generic command-based storage contract.
 function write_custom_storage_config { # helper
-  if [[ -z ${MANEATER_TEST_CONFIG:-} ]]; then
-    skip "MANEATER_TEST_CONFIG not set (run inside nix devshell)"
-  fi
+  require_test_config
 
   local fixtures_dir="$BATS_TEST_TMPDIR/fixtures"
   mkdir -p "$fixtures_dir"
@@ -109,8 +107,6 @@ write-cmd  = ["sh", "-c", "t=\$(mktemp -p \"\$BLOBS\" .in.XXXXXX); cat >\"\$t\";
 exists-cmd = ["sh", "-c", "test -d \"\$BLOBS\" && echo \"custom-fs: filesystem\""]
 init-cmd   = ["sh", "-c", "mkdir -p \"\$BLOBS\""]
 EOF
-
-  export MANEATER_CONFIG="$MANEATER_TEST_CONFIG"
 }
 
 # Explicit `type = "manpages"` corpus alongside a files corpus (maneater#34),
@@ -119,19 +115,16 @@ EOF
 # unless manpath(1) honors $MANPATH and reports exactly the fixtures tree,
 # the test would embed the host's entire man tree and blow the 60s timeout.
 function manpages_corpus_indexes_alongside_files { # @test
-  if [[ -z ${MANEATER_TEST_CONFIG:-} ]]; then
-    skip "MANEATER_TEST_CONFIG not set (run inside nix devshell)"
-  fi
+  require_test_config
 
-  # A 3-page subtree of the deterministic fixtures: the full 20-page tree
-  # costs ~3-4s/page (mandoc+pandoc+tldr+embed) and blows run_maneater's
-  # 60s timeout.
+  # A 2-page subtree (one per section) of the deterministic fixtures:
+  # the full 20-page tree costs ~3-4s/page (mandoc+pandoc+tldr+embed)
+  # and blows run_maneater's 60s timeout.
   local repo_root man_tree
   repo_root="$(cd "$BATS_TEST_DIRNAME/.." && pwd)"
   man_tree="$BATS_TEST_TMPDIR/man"
   mkdir -p "$man_tree/man1" "$man_tree/man5"
   cp "$repo_root/zz-fixtures/manpages/man1/alfabench.1" "$man_tree/man1/"
-  cp "$repo_root/zz-fixtures/manpages/man1/bravobench.1" "$man_tree/man1/"
   cp "$repo_root/zz-fixtures/manpages/man5/alfaconf.5" "$man_tree/man5/"
 
   export MANPATH="$man_tree"
@@ -159,7 +152,6 @@ type = "files"
 paths = ["$fixtures_dir/*"]
 max-chars = 500
 EOF
-  export MANEATER_CONFIG="$MANEATER_TEST_CONFIG"
 
   init_maneater_store
 

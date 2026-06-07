@@ -32,7 +32,7 @@ type ManeaterConfig struct {
 // cfg.Default. See FDR-0001 (smart-retrieval corpus profile).
 type CorpusConfig struct {
 	Name       string   `toml:"name"`
-	Type       string   `toml:"type"` // "files" or "command"
+	Type       string   `toml:"type"` // "files", "command", or "manpages" (expanded to "command" at resolve time)
 	Paths      []string `toml:"paths"`
 	MaxChars   int      `toml:"max-chars"`
 	ListCmd    []string `toml:"list-cmd"`
