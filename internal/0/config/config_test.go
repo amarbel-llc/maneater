@@ -215,6 +215,38 @@ func TestMergeManpathBaseOnlyPreserved(t *testing.T) {
 	}
 }
 
+func TestParseModelTruncate(t *testing.T) {
+	input := []byte(`
+[models.snowflake]
+path = "/tmp/model.gguf"
+truncate = true
+
+[models.nomic]
+path = "/tmp/other.gguf"
+`)
+	doc, err := DecodeManeaterConfig(input)
+	if err != nil {
+		t.Fatalf("parse error: %v", err)
+	}
+	cfg := *doc.Data()
+
+	if !cfg.Models["snowflake"].Truncate {
+		t.Error("snowflake truncate = false, want true")
+	}
+	if cfg.Models["nomic"].Truncate {
+		t.Error("nomic truncate = true, want false (default)")
+	}
+}
+
+func TestResolvedMaxChars(t *testing.T) {
+	if got := (CorpusConfig{}).ResolvedMaxChars(); got != DefaultMaxChars {
+		t.Errorf("unset max-chars resolved to %d, want %d", got, DefaultMaxChars)
+	}
+	if got := (CorpusConfig{MaxChars: 2000}).ResolvedMaxChars(); got != 2000 {
+		t.Errorf("max-chars 2000 resolved to %d, want 2000", got)
+	}
+}
+
 func TestParseCorporaConfig(t *testing.T) {
 	input := []byte(`
 [[corpora]]

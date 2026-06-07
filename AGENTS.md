@@ -36,8 +36,11 @@ The `Embedder` type in `internal/0/embedding/llama.go` wraps three C pointers:
 `llama_model`, `llama_context`, and `llama_vocab`. It must be closed after use.
 
 Embedding flow:
-1. **Tokenize** — calls `llama_tokenize` twice: first with a zero-length buffer
-   to get the token count, then again to fill the real buffer.
+1. **Tokenize** — calls `llama_tokenize` into a context-window-sized buffer;
+   a negative return (buffer too small) means the text exceeds the window and
+   is rejected with a per-document error — or, with the model's
+   `truncate = true` config key, re-tokenized at full size and clamped to the
+   first `n-ctx` tokens.
 2. **Batch** — uses `llama_batch_init` (not `llama_batch_get_one`) so that
    `seq_id` and `logits` flags can be set correctly for multi-sequence batches.
 3. **Encode** — single `llama_encode` call processes all sequences in parallel
@@ -47,7 +50,9 @@ Embedding flow:
 
 `Embed` handles a single text; `EmbedBatch` packs multiple texts into one encode
 call and extracts per-sequence embeddings via `llama_get_embeddings_seq`.
-Context window is 512 tokens.
+Context window defaults to 512 tokens (`n-ctx` per model in maneater.toml);
+texts that tokenize past it error per-document, or embed truncated with the
+model's `truncate = true`.
 
 The `Index` type stores normalized `[]float32` embeddings in memory. `Search`
 computes cosine similarity against all entries and returns the top-K results.
@@ -78,7 +83,9 @@ Do not edit it manually.
 ## Testing
 
 - Pure Go tests (cosine, index, config, manpath) run without external deps
-- Embedding tests require `MANPAGE_MODEL_PATH` env var pointing to a GGUF model
+- Embedding tests require `MANPAGE_MODEL_PATH` env var pointing to a GGUF model;
+  `just test-go-embedding [pattern]` runs them against the devshell's
+  `MANEATER_TEST_CONFIG` model (they always skip in the nix sandbox)
 - `search_quality_test.go` documents expected ranking behavior and known gaps
 
 ## Nix

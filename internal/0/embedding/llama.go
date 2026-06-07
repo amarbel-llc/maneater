@@ -17,6 +17,7 @@ type Embedder struct {
 	vocab    *C.struct_llama_vocab
 	nEmbd    int
 	nCtx     int
+	truncate bool
 	strategy batchStrategy
 }
 
@@ -76,8 +77,10 @@ func (decoderStrategy) RunBatch(ctx *C.struct_llama_context, batch C.struct_llam
 // poolingType is one of "" (model default), "mean", "cls", "last";
 // any other value returns an error. n_batch / n_ubatch are clamped
 // to the same value as nCtx to keep the context-window invariants
-// consistent.
-func NewEmbedder(modelPath string, nCtx int, poolingType string) (*Embedder, error) {
+// consistent. truncate controls Embed's behavior on texts that
+// tokenize past nCtx: false rejects them with an error, true embeds
+// only the first nCtx tokens.
+func NewEmbedder(modelPath string, nCtx int, poolingType string, truncate bool) (*Embedder, error) {
 	installLlamaLogRedirect()
 
 	if nCtx <= 0 {
@@ -135,6 +138,7 @@ func NewEmbedder(modelPath string, nCtx int, poolingType string) (*Embedder, err
 		vocab:    vocab,
 		nEmbd:    nEmbd,
 		nCtx:     nCtx,
+		truncate: truncate,
 		strategy: strategy,
 	}, nil
 }
@@ -144,8 +148,11 @@ func (e *Embedder) Embed(text string) ([]float32, error) {
 	defer C.free(unsafe.Pointer(cText))
 	textLen := C.int(len(text))
 
-	// Tokenize: first call with 0 buffer to get required size
-	maxTokens := 512
+	// Tokenize into a context-window-sized buffer: a negative return
+	// (buffer too small) then doubles as the "text exceeds the context
+	// window" signal, so the common and reject paths each pay a single
+	// tokenize pass.
+	maxTokens := e.nCtx
 	tokens := make([]C.llama_token, maxTokens)
 
 	nTokens := C.llama_tokenize(
@@ -159,7 +166,18 @@ func (e *Embedder) Embed(text string) ([]float32, error) {
 	)
 
 	if nTokens < 0 {
-		// Need more space, try with the required size
+		// The text tokenizes past nCtx. Never submit such a batch:
+		// more tokens than n_ubatch (= nCtx) trips a GGML_ASSERT
+		// inside llama.cpp ("encoder requires n_ubatch >= n_tokens")
+		// that aborts the whole process instead of returning an error.
+		if !e.truncate {
+			return nil, fmt.Errorf("text tokenizes to %d tokens, exceeding context size %d", -nTokens, e.nCtx)
+		}
+
+		// Truncate: re-tokenize at the required size, then keep only
+		// the first nCtx tokens. llama_tokenize does not fill the
+		// buffer on overflow, so the retry is unavoidable. The dropped
+		// tail includes any tokenizer-appended trailing special token.
 		maxTokens = int(-nTokens)
 		tokens = make([]C.llama_token, maxTokens)
 		nTokens = C.llama_tokenize(
@@ -173,6 +191,9 @@ func (e *Embedder) Embed(text string) ([]float32, error) {
 		)
 		if nTokens < 0 {
 			return nil, fmt.Errorf("tokenization failed")
+		}
+		if int(nTokens) > e.nCtx {
+			nTokens = C.int(e.nCtx)
 		}
 	}
 
@@ -259,6 +280,12 @@ func (e *Embedder) Tokenize(text string) (int, error) {
 // assigning each text a separate seq_id. The total token count across
 // all texts must not exceed the context size (512). Returns one
 // L2-normalized embedding per input text, in the same order.
+//
+// Note: the truncate option is NOT applied here (except via the
+// single-text fast path, which delegates to Embed) — a batch whose
+// total exceeds the context window always errors. If BatchEmbed is
+// ever wired into indexing, unify its overflow handling with Embed's
+// truncate semantics first.
 //
 // Performance note: BERT-style embedding models use non-causal attention
 // (every token attends to every other token in the batch). This means
@@ -386,6 +413,14 @@ func (e *Embedder) BatchEmbed(texts []string) ([][]float32, error) {
 // configured at NewEmbedder time.
 func (e *Embedder) ContextSize() int {
 	return e.nCtx
+}
+
+// TrainedContextSize returns the context size the model was trained
+// with, from GGUF metadata (llama_model_n_ctx_train). A configured
+// nCtx above this degrades embedding quality silently; callers can
+// compare against ContextSize and warn.
+func (e *Embedder) TrainedContextSize() int {
+	return int(C.llama_model_n_ctx_train(e.model))
 }
 
 func (e *Embedder) EmbeddingDim() int {

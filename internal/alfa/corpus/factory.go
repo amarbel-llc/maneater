@@ -18,7 +18,7 @@ func FromConfig(cc config.CorpusConfig) (Corpus, error) {
 		return &FilesCorpus{
 			CorpusName: cc.Name,
 			Patterns:   cc.Paths,
-			MaxChars:   cc.MaxChars,
+			MaxChars:   cc.ResolvedMaxChars(),
 		}, nil
 	case "command":
 		if cc.Name == "" {
@@ -34,7 +34,7 @@ func FromConfig(cc config.CorpusConfig) (Corpus, error) {
 			CorpusName: cc.Name,
 			ListCmd:    cc.ListCmd,
 			ReadCmd:    cc.ReadCmd,
-			MaxChars:   cc.MaxChars,
+			MaxChars:   cc.ResolvedMaxChars(),
 		}, nil
 	default:
 		return nil, fmt.Errorf("unknown corpus type %q", cc.Type)

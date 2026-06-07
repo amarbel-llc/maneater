@@ -139,7 +139,7 @@ func (s *searcher) ensureSearchReady() error {
 	}
 
 	if s.embedder == nil {
-		emb, err := embedding.NewEmbedder(s.modelCfg.Path, s.modelCfg.NCtx, s.modelCfg.Pooling)
+		emb, err := embedding.NewEmbedder(s.modelCfg.Path, s.modelCfg.NCtx, s.modelCfg.Pooling, s.modelCfg.Truncate)
 		if err != nil {
 			return fmt.Errorf("loading embedding model: %w", err)
 		}

@@ -20,6 +20,8 @@ import (
 //   - corpus.Model (the [models.<name>] selector; cache invalidates if
 //     a corpus is repointed at a different model entry without changing
 //     the model's underlying path)
+//   - model.Truncate (folded in only when true so pre-truncate caches
+//     keep their digests, same trick as ResolvedNCtx)
 func Hash(model ModelConfig, corpus CorpusConfig) string {
 	h := sha256.New()
 	fmt.Fprintf(h, "model-path:%s\n", model.Path)
@@ -28,5 +30,8 @@ func Hash(model ModelConfig, corpus CorpusConfig) string {
 	fmt.Fprintf(h, "pooling:%s\n", model.Pooling)
 	fmt.Fprintf(h, "max-chars:%d\n", corpus.MaxChars)
 	fmt.Fprintf(h, "corpus-model:%s\n", corpus.Model)
+	if model.Truncate {
+		fmt.Fprintf(h, "truncate:true\n")
+	}
 	return hex.EncodeToString(h.Sum(nil))[:12]
 }

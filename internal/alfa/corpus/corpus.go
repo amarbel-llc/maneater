@@ -4,7 +4,11 @@
 // heavier system-interaction helpers.
 package corpus
 
-import "iter"
+import (
+	"iter"
+
+	"github.com/amarbel-llc/maneater/internal/0/config"
+)
 
 // Document represents a single item to be embedded and indexed. If Texts is
 // nil, the caller should reuse a previously cached entry for Key (the
@@ -30,4 +34,7 @@ type Corpus interface {
 	Documents(prev map[string]string) iter.Seq2[Document, error]
 }
 
-const defaultMaxChars = 500
+// defaultMaxChars aliases config.DefaultMaxChars so the corpus
+// implementations and config-level validation can't drift on the
+// effective per-chunk character budget.
+const defaultMaxChars = config.DefaultMaxChars

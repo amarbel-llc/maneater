@@ -63,12 +63,19 @@ type ManpathConfig struct {
 // Pooling (toml: pooling) selects llama_pooling_type: "" (model
 // default), "mean", "cls", or "last". Decoder-LLM-as-encoder models
 // (Qwen3-Embedding, Mistral-derived) typically need "last".
+//
+// Truncate (toml: truncate) controls what happens when a text
+// tokenizes to more than NCtx tokens: false (the default) rejects the
+// text with a per-document error; true silently embeds only the first
+// NCtx tokens. Truncation changes embedding content, so it
+// participates in config.Hash.
 type ModelConfig struct {
 	Path           string `toml:"path"`
 	QueryPrefix    string `toml:"query-prefix"`
 	DocumentPrefix string `toml:"document-prefix"`
 	NCtx           int    `toml:"n-ctx"`
 	Pooling        string `toml:"pooling"`
+	Truncate       bool   `toml:"truncate"`
 }
 
 // ResolvedNCtx returns the effective context size: m.NCtx when
@@ -78,6 +85,21 @@ func (m ModelConfig) ResolvedNCtx() int {
 		return m.NCtx
 	}
 	return 512
+}
+
+// DefaultMaxChars is the per-chunk character budget corpora fall back
+// to when max-chars is zero/unset. The corpus implementations apply
+// it; it lives here so config-level validation (chunk budget vs model
+// context window) agrees with them on the effective value.
+const DefaultMaxChars = 500
+
+// ResolvedMaxChars returns the effective per-chunk character budget:
+// c.MaxChars when positive, otherwise DefaultMaxChars.
+func (c CorpusConfig) ResolvedMaxChars() int {
+	if c.MaxChars > 0 {
+		return c.MaxChars
+	}
+	return DefaultMaxChars
 }
 
 // ValidatePooling returns nil if m.Pooling is one of the accepted

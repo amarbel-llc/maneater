@@ -92,6 +92,20 @@ func TestConfigHashPoolingInvalidates(t *testing.T) {
 	}
 }
 
+func TestConfigHashTruncateInvalidates(t *testing.T) {
+	cc := config.CorpusConfig{MaxChars: 500}
+
+	// Truncate is folded into the hash only when true (see Hash) so
+	// pre-truncate caches keep their digests; asserted here: on/off
+	// digests differ.
+	hOff := config.Hash(config.ModelConfig{Path: "/m.gguf"}, cc)
+	hOn := config.Hash(config.ModelConfig{Path: "/m.gguf", Truncate: true}, cc)
+
+	if hOff == hOn {
+		t.Error("truncate on vs off should hash differently")
+	}
+}
+
 func TestConfigHashCorpusModelInvalidates(t *testing.T) {
 	mc := config.ModelConfig{Path: "/m.gguf"}
 

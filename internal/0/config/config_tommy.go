@@ -55,15 +55,15 @@ func DecodeManeaterConfig(input []byte) (*ManeaterConfigDocument, error) {
 			if !strings.HasPrefix(_hdr, "models.") {
 				continue
 			}
-			_mk := _hdr[7:]
-			if strings.Contains(_mk, ".") {
+			_mk0 := _hdr[7:]
+			if strings.Contains(_mk0, ".") {
 				continue
 			}
 			if _mr == nil {
 				d.consumed["models"] = true
 				_mr = make(map[string]ModelConfig)
 			}
-			d.consumed["models"+"."+_mk] = true
+			d.consumed["models"+"."+_mk0] = true
 			var entry ModelConfig
 			for _, _kv := range _ch.Children {
 				if _kv.Kind != cst.NodeKeyValue {
@@ -73,31 +73,36 @@ func DecodeManeaterConfig(input []byte) (*ManeaterConfigDocument, error) {
 				case "path":
 					if v, ok := cst.ExtractString(_kv); ok {
 						entry.Path = v
-						d.consumed["models."+_mk+"."+"path"] = true
+						d.consumed["models."+_mk0+".path"] = true
 					}
 				case "query-prefix":
 					if v, ok := cst.ExtractString(_kv); ok {
 						entry.QueryPrefix = v
-						d.consumed["models."+_mk+"."+"query-prefix"] = true
+						d.consumed["models."+_mk0+".query-prefix"] = true
 					}
 				case "document-prefix":
 					if v, ok := cst.ExtractString(_kv); ok {
 						entry.DocumentPrefix = v
-						d.consumed["models."+_mk+"."+"document-prefix"] = true
+						d.consumed["models."+_mk0+".document-prefix"] = true
 					}
 				case "n-ctx":
 					if v, ok := cst.ExtractInt(_kv); ok {
 						entry.NCtx = v
-						d.consumed["models."+_mk+"."+"n-ctx"] = true
+						d.consumed["models."+_mk0+".n-ctx"] = true
 					}
 				case "pooling":
 					if v, ok := cst.ExtractString(_kv); ok {
 						entry.Pooling = v
-						d.consumed["models."+_mk+"."+"pooling"] = true
+						d.consumed["models."+_mk0+".pooling"] = true
+					}
+				case "truncate":
+					if v, ok := cst.ExtractBool(_kv); ok {
+						entry.Truncate = v
+						d.consumed["models."+_mk0+".truncate"] = true
 					}
 				}
 			}
-			_mr[_mk] = entry
+			_mr[_mk0] = entry
 		}
 		if _mr != nil {
 			d.data.Models = _mr
@@ -113,7 +118,7 @@ func DecodeManeaterConfig(input []byte) (*ManeaterConfigDocument, error) {
 		}
 		if _ftManpath != nil {
 			d.consumed["manpath"] = true
-			manpathVal := &ManpathConfig{}
+			manpathVal1 := &ManpathConfig{}
 			for _, _kv := range _ftManpath.Children {
 				if _kv.Kind != cst.NodeKeyValue {
 					continue
@@ -121,19 +126,19 @@ func DecodeManeaterConfig(input []byte) (*ManeaterConfigDocument, error) {
 				switch cst.KeyValueName(_kv) {
 				case "include":
 					if v, ok := cst.ExtractStringSlice(_kv); ok {
-						manpathVal.Include = v
+						manpathVal1.Include = v
 						d.consumed["manpath.include"] = true
 					}
 				case "no-auto":
 					if v, ok := cst.ExtractBool(_kv); ok {
-						manpathVal.NoAuto = v
+						manpathVal1.NoAuto = v
 						d.consumed["manpath.no-auto"] = true
 					}
 				}
 			}
-			d.data.Manpath = manpathVal
+			d.data.Manpath = manpathVal1
 		} else {
-			manpathVal := &ManpathConfig{}
+			manpathVal1 := &ManpathConfig{}
 			_found := false
 			for _, _kv := range d.cstDoc.Root().Children {
 				if _kv.Kind != cst.NodeKeyValue {
@@ -142,19 +147,19 @@ func DecodeManeaterConfig(input []byte) (*ManeaterConfigDocument, error) {
 				switch cst.KeyValueName(_kv) {
 				case "include":
 					if v, ok := cst.ExtractStringSlice(_kv); ok {
-						manpathVal.Include = v
+						manpathVal1.Include = v
 						d.consumed["include"] = true
 					}
 				case "no-auto":
 					if v, ok := cst.ExtractBool(_kv); ok {
-						manpathVal.NoAuto = v
+						manpathVal1.NoAuto = v
 						_found = true
 						d.consumed["no-auto"] = true
 					}
 				}
 			}
 			if _found {
-				d.data.Manpath = manpathVal
+				d.data.Manpath = manpathVal1
 			}
 		}
 	}
@@ -168,7 +173,7 @@ func DecodeManeaterConfig(input []byte) (*ManeaterConfigDocument, error) {
 		}
 		if _ftStorage != nil {
 			d.consumed["storage"] = true
-			storageVal := &StorageConfig{}
+			storageVal2 := &StorageConfig{}
 			for _, _kv := range _ftStorage.Children {
 				if _kv.Kind != cst.NodeKeyValue {
 					continue
@@ -176,34 +181,34 @@ func DecodeManeaterConfig(input []byte) (*ManeaterConfigDocument, error) {
 				switch cst.KeyValueName(_kv) {
 				case "store-id":
 					if v, ok := cst.ExtractString(_kv); ok {
-						storageVal.StoreID = v
+						storageVal2.StoreID = v
 						d.consumed["storage.store-id"] = true
 					}
 				case "read-cmd":
 					if v, ok := cst.ExtractStringSlice(_kv); ok {
-						storageVal.ReadCmd = v
+						storageVal2.ReadCmd = v
 						d.consumed["storage.read-cmd"] = true
 					}
 				case "write-cmd":
 					if v, ok := cst.ExtractStringSlice(_kv); ok {
-						storageVal.WriteCmd = v
+						storageVal2.WriteCmd = v
 						d.consumed["storage.write-cmd"] = true
 					}
 				case "exists-cmd":
 					if v, ok := cst.ExtractStringSlice(_kv); ok {
-						storageVal.ExistsCmd = v
+						storageVal2.ExistsCmd = v
 						d.consumed["storage.exists-cmd"] = true
 					}
 				case "init-cmd":
 					if v, ok := cst.ExtractStringSlice(_kv); ok {
-						storageVal.InitCmd = v
+						storageVal2.InitCmd = v
 						d.consumed["storage.init-cmd"] = true
 					}
 				}
 			}
-			d.data.Storage = storageVal
+			d.data.Storage = storageVal2
 		} else {
-			storageVal := &StorageConfig{}
+			storageVal2 := &StorageConfig{}
 			_found := false
 			for _, _kv := range d.cstDoc.Root().Children {
 				if _kv.Kind != cst.NodeKeyValue {
@@ -212,34 +217,34 @@ func DecodeManeaterConfig(input []byte) (*ManeaterConfigDocument, error) {
 				switch cst.KeyValueName(_kv) {
 				case "store-id":
 					if v, ok := cst.ExtractString(_kv); ok {
-						storageVal.StoreID = v
+						storageVal2.StoreID = v
 						_found = true
 						d.consumed["store-id"] = true
 					}
 				case "read-cmd":
 					if v, ok := cst.ExtractStringSlice(_kv); ok {
-						storageVal.ReadCmd = v
+						storageVal2.ReadCmd = v
 						d.consumed["read-cmd"] = true
 					}
 				case "write-cmd":
 					if v, ok := cst.ExtractStringSlice(_kv); ok {
-						storageVal.WriteCmd = v
+						storageVal2.WriteCmd = v
 						d.consumed["write-cmd"] = true
 					}
 				case "exists-cmd":
 					if v, ok := cst.ExtractStringSlice(_kv); ok {
-						storageVal.ExistsCmd = v
+						storageVal2.ExistsCmd = v
 						d.consumed["exists-cmd"] = true
 					}
 				case "init-cmd":
 					if v, ok := cst.ExtractStringSlice(_kv); ok {
-						storageVal.InitCmd = v
+						storageVal2.InitCmd = v
 						d.consumed["init-cmd"] = true
 					}
 				}
 			}
 			if _found {
-				d.data.Storage = storageVal
+				d.data.Storage = storageVal2
 			}
 		}
 	}
@@ -284,15 +289,18 @@ func (d *ManeaterConfigDocument) Encode() ([]byte, error) {
 					return nil, fmt.Errorf("%w", err)
 				}
 			}
+			if mapVal.Truncate != false || cst.HasValue(subTable, "truncate") {
+				if err := cst.SetAny(subTable, "truncate", mapVal.Truncate); err != nil {
+					return nil, fmt.Errorf("%w", err)
+				}
+			}
 		}
 	}
 	if d.data.Manpath != nil {
 		tableNode := cst.EnsureChildTable(d.cstDoc.Root(), d.cstDoc.Root(), "manpath")
 		{
-			if len(d.data.Manpath.Include) > 0 || cst.HasValue(tableNode, "include") {
-				if err := cst.SetAny(tableNode, "include", d.data.Manpath.Include); err != nil {
-					return nil, fmt.Errorf("%w", err)
-				}
+			if err := cst.SetAny(tableNode, "include", d.data.Manpath.Include); err != nil {
+				return nil, fmt.Errorf("%w", err)
 			}
 		}
 		if d.data.Manpath.NoAuto != false || cst.HasValue(tableNode, "no-auto") {
@@ -309,31 +317,23 @@ func (d *ManeaterConfigDocument) Encode() ([]byte, error) {
 			}
 		}
 		{
-			if len(d.data.Storage.ReadCmd) > 0 || cst.HasValue(tableNode, "read-cmd") {
-				if err := cst.SetAny(tableNode, "read-cmd", d.data.Storage.ReadCmd); err != nil {
-					return nil, fmt.Errorf("%w", err)
-				}
+			if err := cst.SetAny(tableNode, "read-cmd", d.data.Storage.ReadCmd); err != nil {
+				return nil, fmt.Errorf("%w", err)
 			}
 		}
 		{
-			if len(d.data.Storage.WriteCmd) > 0 || cst.HasValue(tableNode, "write-cmd") {
-				if err := cst.SetAny(tableNode, "write-cmd", d.data.Storage.WriteCmd); err != nil {
-					return nil, fmt.Errorf("%w", err)
-				}
+			if err := cst.SetAny(tableNode, "write-cmd", d.data.Storage.WriteCmd); err != nil {
+				return nil, fmt.Errorf("%w", err)
 			}
 		}
 		{
-			if len(d.data.Storage.ExistsCmd) > 0 || cst.HasValue(tableNode, "exists-cmd") {
-				if err := cst.SetAny(tableNode, "exists-cmd", d.data.Storage.ExistsCmd); err != nil {
-					return nil, fmt.Errorf("%w", err)
-				}
+			if err := cst.SetAny(tableNode, "exists-cmd", d.data.Storage.ExistsCmd); err != nil {
+				return nil, fmt.Errorf("%w", err)
 			}
 		}
 		{
-			if len(d.data.Storage.InitCmd) > 0 || cst.HasValue(tableNode, "init-cmd") {
-				if err := cst.SetAny(tableNode, "init-cmd", d.data.Storage.InitCmd); err != nil {
-					return nil, fmt.Errorf("%w", err)
-				}
+			if err := cst.SetAny(tableNode, "init-cmd", d.data.Storage.InitCmd); err != nil {
+				return nil, fmt.Errorf("%w", err)
 			}
 		}
 	}
@@ -383,15 +383,15 @@ func DecodeManeaterConfigInto(data *ManeaterConfig, doc *document.Document, cont
 			if !strings.HasPrefix(_hdr, keyPrefix+"models.") {
 				continue
 			}
-			_mk := _hdr[len(keyPrefix)+len("models."):]
-			if strings.Contains(_mk, ".") {
+			_mk0 := _hdr[len(keyPrefix)+len("models."):]
+			if strings.Contains(_mk0, ".") {
 				continue
 			}
 			if _mr == nil {
 				consumed[keyPrefix+"models"] = true
 				_mr = make(map[string]ModelConfig)
 			}
-			consumed[keyPrefix+"models"+"."+_mk] = true
+			consumed[keyPrefix+"models"+"."+_mk0] = true
 			var entry ModelConfig
 			for _, _kv := range _ch.Children {
 				if _kv.Kind != cst.NodeKeyValue {
@@ -401,31 +401,36 @@ func DecodeManeaterConfigInto(data *ManeaterConfig, doc *document.Document, cont
 				case "path":
 					if v, ok := cst.ExtractString(_kv); ok {
 						entry.Path = v
-						consumed[keyPrefix+keyPrefix+"models."+_mk+"."+"path"] = true
+						consumed[keyPrefix+"models."+_mk0+".path"] = true
 					}
 				case "query-prefix":
 					if v, ok := cst.ExtractString(_kv); ok {
 						entry.QueryPrefix = v
-						consumed[keyPrefix+keyPrefix+"models."+_mk+"."+"query-prefix"] = true
+						consumed[keyPrefix+"models."+_mk0+".query-prefix"] = true
 					}
 				case "document-prefix":
 					if v, ok := cst.ExtractString(_kv); ok {
 						entry.DocumentPrefix = v
-						consumed[keyPrefix+keyPrefix+"models."+_mk+"."+"document-prefix"] = true
+						consumed[keyPrefix+"models."+_mk0+".document-prefix"] = true
 					}
 				case "n-ctx":
 					if v, ok := cst.ExtractInt(_kv); ok {
 						entry.NCtx = v
-						consumed[keyPrefix+keyPrefix+"models."+_mk+"."+"n-ctx"] = true
+						consumed[keyPrefix+"models."+_mk0+".n-ctx"] = true
 					}
 				case "pooling":
 					if v, ok := cst.ExtractString(_kv); ok {
 						entry.Pooling = v
-						consumed[keyPrefix+keyPrefix+"models."+_mk+"."+"pooling"] = true
+						consumed[keyPrefix+"models."+_mk0+".pooling"] = true
+					}
+				case "truncate":
+					if v, ok := cst.ExtractBool(_kv); ok {
+						entry.Truncate = v
+						consumed[keyPrefix+"models."+_mk0+".truncate"] = true
 					}
 				}
 			}
-			_mr[_mk] = entry
+			_mr[_mk0] = entry
 		}
 		if _mr != nil {
 			data.Models = _mr
@@ -441,7 +446,7 @@ func DecodeManeaterConfigInto(data *ManeaterConfig, doc *document.Document, cont
 		}
 		if _ftManpath != nil {
 			consumed[keyPrefix+"manpath"] = true
-			manpathVal := &ManpathConfig{}
+			manpathVal1 := &ManpathConfig{}
 			for _, _kv := range _ftManpath.Children {
 				if _kv.Kind != cst.NodeKeyValue {
 					continue
@@ -449,19 +454,19 @@ func DecodeManeaterConfigInto(data *ManeaterConfig, doc *document.Document, cont
 				switch cst.KeyValueName(_kv) {
 				case "include":
 					if v, ok := cst.ExtractStringSlice(_kv); ok {
-						manpathVal.Include = v
+						manpathVal1.Include = v
 						consumed[keyPrefix+"manpath.include"] = true
 					}
 				case "no-auto":
 					if v, ok := cst.ExtractBool(_kv); ok {
-						manpathVal.NoAuto = v
+						manpathVal1.NoAuto = v
 						consumed[keyPrefix+"manpath.no-auto"] = true
 					}
 				}
 			}
-			data.Manpath = manpathVal
+			data.Manpath = manpathVal1
 		} else {
-			manpathVal := &ManpathConfig{}
+			manpathVal1 := &ManpathConfig{}
 			_found := false
 			for _, _kv := range container.Children {
 				if _kv.Kind != cst.NodeKeyValue {
@@ -470,19 +475,19 @@ func DecodeManeaterConfigInto(data *ManeaterConfig, doc *document.Document, cont
 				switch cst.KeyValueName(_kv) {
 				case "include":
 					if v, ok := cst.ExtractStringSlice(_kv); ok {
-						manpathVal.Include = v
+						manpathVal1.Include = v
 						consumed["include"] = true
 					}
 				case "no-auto":
 					if v, ok := cst.ExtractBool(_kv); ok {
-						manpathVal.NoAuto = v
+						manpathVal1.NoAuto = v
 						_found = true
 						consumed["no-auto"] = true
 					}
 				}
 			}
 			if _found {
-				data.Manpath = manpathVal
+				data.Manpath = manpathVal1
 			}
 		}
 	}
@@ -496,7 +501,7 @@ func DecodeManeaterConfigInto(data *ManeaterConfig, doc *document.Document, cont
 		}
 		if _ftStorage != nil {
 			consumed[keyPrefix+"storage"] = true
-			storageVal := &StorageConfig{}
+			storageVal2 := &StorageConfig{}
 			for _, _kv := range _ftStorage.Children {
 				if _kv.Kind != cst.NodeKeyValue {
 					continue
@@ -504,34 +509,34 @@ func DecodeManeaterConfigInto(data *ManeaterConfig, doc *document.Document, cont
 				switch cst.KeyValueName(_kv) {
 				case "store-id":
 					if v, ok := cst.ExtractString(_kv); ok {
-						storageVal.StoreID = v
+						storageVal2.StoreID = v
 						consumed[keyPrefix+"storage.store-id"] = true
 					}
 				case "read-cmd":
 					if v, ok := cst.ExtractStringSlice(_kv); ok {
-						storageVal.ReadCmd = v
+						storageVal2.ReadCmd = v
 						consumed[keyPrefix+"storage.read-cmd"] = true
 					}
 				case "write-cmd":
 					if v, ok := cst.ExtractStringSlice(_kv); ok {
-						storageVal.WriteCmd = v
+						storageVal2.WriteCmd = v
 						consumed[keyPrefix+"storage.write-cmd"] = true
 					}
 				case "exists-cmd":
 					if v, ok := cst.ExtractStringSlice(_kv); ok {
-						storageVal.ExistsCmd = v
+						storageVal2.ExistsCmd = v
 						consumed[keyPrefix+"storage.exists-cmd"] = true
 					}
 				case "init-cmd":
 					if v, ok := cst.ExtractStringSlice(_kv); ok {
-						storageVal.InitCmd = v
+						storageVal2.InitCmd = v
 						consumed[keyPrefix+"storage.init-cmd"] = true
 					}
 				}
 			}
-			data.Storage = storageVal
+			data.Storage = storageVal2
 		} else {
-			storageVal := &StorageConfig{}
+			storageVal2 := &StorageConfig{}
 			_found := false
 			for _, _kv := range container.Children {
 				if _kv.Kind != cst.NodeKeyValue {
@@ -540,34 +545,34 @@ func DecodeManeaterConfigInto(data *ManeaterConfig, doc *document.Document, cont
 				switch cst.KeyValueName(_kv) {
 				case "store-id":
 					if v, ok := cst.ExtractString(_kv); ok {
-						storageVal.StoreID = v
+						storageVal2.StoreID = v
 						_found = true
 						consumed["store-id"] = true
 					}
 				case "read-cmd":
 					if v, ok := cst.ExtractStringSlice(_kv); ok {
-						storageVal.ReadCmd = v
+						storageVal2.ReadCmd = v
 						consumed["read-cmd"] = true
 					}
 				case "write-cmd":
 					if v, ok := cst.ExtractStringSlice(_kv); ok {
-						storageVal.WriteCmd = v
+						storageVal2.WriteCmd = v
 						consumed["write-cmd"] = true
 					}
 				case "exists-cmd":
 					if v, ok := cst.ExtractStringSlice(_kv); ok {
-						storageVal.ExistsCmd = v
+						storageVal2.ExistsCmd = v
 						consumed["exists-cmd"] = true
 					}
 				case "init-cmd":
 					if v, ok := cst.ExtractStringSlice(_kv); ok {
-						storageVal.InitCmd = v
+						storageVal2.InitCmd = v
 						consumed["init-cmd"] = true
 					}
 				}
 			}
 			if _found {
-				data.Storage = storageVal
+				data.Storage = storageVal2
 			}
 		}
 	}
@@ -608,15 +613,18 @@ func EncodeManeaterConfigFrom(data *ManeaterConfig, doc *document.Document, cont
 					return fmt.Errorf("%w", err)
 				}
 			}
+			if mapVal.Truncate != false || cst.HasValue(subTable, "truncate") {
+				if err := cst.SetAny(subTable, "truncate", mapVal.Truncate); err != nil {
+					return fmt.Errorf("%w", err)
+				}
+			}
 		}
 	}
 	if data.Manpath != nil {
 		tableNode := cst.EnsureChildTable(doc.Root(), container, "manpath")
 		{
-			if len(data.Manpath.Include) > 0 || cst.HasValue(tableNode, "include") {
-				if err := cst.SetAny(tableNode, "include", data.Manpath.Include); err != nil {
-					return fmt.Errorf("%w", err)
-				}
+			if err := cst.SetAny(tableNode, "include", data.Manpath.Include); err != nil {
+				return fmt.Errorf("%w", err)
 			}
 		}
 		if data.Manpath.NoAuto != false || cst.HasValue(tableNode, "no-auto") {
@@ -633,31 +641,23 @@ func EncodeManeaterConfigFrom(data *ManeaterConfig, doc *document.Document, cont
 			}
 		}
 		{
-			if len(data.Storage.ReadCmd) > 0 || cst.HasValue(tableNode, "read-cmd") {
-				if err := cst.SetAny(tableNode, "read-cmd", data.Storage.ReadCmd); err != nil {
-					return fmt.Errorf("%w", err)
-				}
+			if err := cst.SetAny(tableNode, "read-cmd", data.Storage.ReadCmd); err != nil {
+				return fmt.Errorf("%w", err)
 			}
 		}
 		{
-			if len(data.Storage.WriteCmd) > 0 || cst.HasValue(tableNode, "write-cmd") {
-				if err := cst.SetAny(tableNode, "write-cmd", data.Storage.WriteCmd); err != nil {
-					return fmt.Errorf("%w", err)
-				}
+			if err := cst.SetAny(tableNode, "write-cmd", data.Storage.WriteCmd); err != nil {
+				return fmt.Errorf("%w", err)
 			}
 		}
 		{
-			if len(data.Storage.ExistsCmd) > 0 || cst.HasValue(tableNode, "exists-cmd") {
-				if err := cst.SetAny(tableNode, "exists-cmd", data.Storage.ExistsCmd); err != nil {
-					return fmt.Errorf("%w", err)
-				}
+			if err := cst.SetAny(tableNode, "exists-cmd", data.Storage.ExistsCmd); err != nil {
+				return fmt.Errorf("%w", err)
 			}
 		}
 		{
-			if len(data.Storage.InitCmd) > 0 || cst.HasValue(tableNode, "init-cmd") {
-				if err := cst.SetAny(tableNode, "init-cmd", data.Storage.InitCmd); err != nil {
-					return fmt.Errorf("%w", err)
-				}
+			if err := cst.SetAny(tableNode, "init-cmd", data.Storage.InitCmd); err != nil {
+				return fmt.Errorf("%w", err)
 			}
 		}
 	}

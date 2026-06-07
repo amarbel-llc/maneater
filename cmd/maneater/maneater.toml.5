@@ -79,6 +79,40 @@ Optional.
 .It Va document-prefix
 String prepended to documents before embedding.
 Optional.
+.It Va n-ctx
+Context window size in tokens.
+Also caps the batch size, so no single text may tokenize past it.
+Values above the model's trained context size (from GGUF metadata)
+degrade embedding quality; indexing warns when this happens.
+Default: 512.
+Optional.
+.It Va pooling
+Embedding pooling type.
+One of
+.Cm mean ,
+.Cm cls ,
+or
+.Cm last .
+Unset uses the model's GGUF-declared default.
+Decoder-LLM-derived embedding models (Qwen3-Embedding, Mistral-derived)
+typically need
+.Cm last .
+Optional.
+.It Va truncate
+When
+.Cm true ,
+texts that tokenize past
+.Va n-ctx
+are embedded from their first
+.Va n-ctx
+tokens only (the tail is dropped).
+When
+.Cm false ,
+such texts fail with a per-document error and are left out of the
+index.
+Default:
+.Cm false .
+Optional.
 .El
 .Pp
 Example with multiple models:
@@ -187,6 +221,14 @@ Required.
 .It Va max-chars
 Maximum characters per document text.
 Longer texts are truncated before embedding.
+Note this is a character budget while the model's
+.Va n-ctx
+is a token budget; prose averages roughly 3 characters per token, so a
+.Va max-chars
+much above 3\(mu
+.Va n-ctx
+produces chunks that cannot fit the context window.
+Indexing warns when the two budgets can conflict.
 Default: 500.
 Optional.
 .El

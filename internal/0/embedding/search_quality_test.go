@@ -14,7 +14,7 @@ func newTestEmbedder(t *testing.T) *Embedder {
 	if modelPath == "" {
 		t.Skip("MANPAGE_MODEL_PATH not set")
 	}
-	emb, err := NewEmbedder(modelPath, 0, "")
+	emb, err := NewEmbedder(modelPath, 0, "", false)
 	if err != nil {
 		t.Fatalf("NewEmbedder: %v", err)
 	}

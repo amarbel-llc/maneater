@@ -107,12 +107,19 @@ func RunIndex(ctx context.Context) error {
 		if !ok {
 			tw.Comment("loading model %q from %s (n-ctx=%d, pooling=%q)",
 				modelName, modelCfg.Path, modelCfg.ResolvedNCtx(), modelCfg.Pooling)
-			emb, err = embedding.NewEmbedder(modelCfg.Path, modelCfg.NCtx, modelCfg.Pooling)
+			emb, err = embedding.NewEmbedder(modelCfg.Path, modelCfg.NCtx, modelCfg.Pooling, modelCfg.Truncate)
 			if err != nil {
 				tw.BailOut("loading model %q: %v", modelName, err)
 				return fmt.Errorf("loading model %q: %w", modelName, err)
 			}
+			if msg := trainedContextWarning(modelName, emb.ContextSize(), emb.TrainedContextSize()); msg != "" {
+				tw.Comment("%s", msg)
+			}
 			embedders[modelName] = emb
+		}
+
+		if msg := chunkBudgetWarning(c.Name(), cc.ResolvedMaxChars(), modelName, emb.ContextSize(), modelCfg.Truncate); msg != "" {
+			tw.Comment("%s", msg)
 		}
 
 		cfgHash := config.Hash(modelCfg, cc)
