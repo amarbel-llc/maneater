@@ -163,10 +163,13 @@ func TestCommandCorpusDefaultMaxChars(t *testing.T) {
 
 func TestFromConfigCommand(t *testing.T) {
 	cc := config.CorpusConfig{
-		Name:    "test",
-		Type:    "command",
-		ListCmd: []string{"echo", "key"},
-		ReadCmd: []string{"echo", "text"},
+		Name:       "test",
+		Type:       "command",
+		ListCmd:    []string{"echo", "key"},
+		ReadCmd:    []string{"echo", "text"},
+		HashCmd:    []string{"echo", "hash"},
+		PrepareCmd: []string{"echo", "prepare"},
+		Workers:    8,
 	}
 
 	c, err := corpus.FromConfig(cc)
@@ -175,6 +178,23 @@ func TestFromConfigCommand(t *testing.T) {
 	}
 	if c.Name() != "test" {
 		t.Errorf("Name() = %q, want test", c.Name())
+	}
+
+	// Every CorpusConfig knob must propagate — HashCmd, PrepareCmd, and
+	// Workers were silently dropped once (maneater#35), which cost the
+	// default manpages corpus its hash fast-path and worker pool.
+	cmdc, ok := c.(*corpus.CommandCorpus)
+	if !ok {
+		t.Fatalf("FromConfig returned %T, want *corpus.CommandCorpus", c)
+	}
+	if len(cmdc.HashCmd) == 0 || cmdc.HashCmd[1] != "hash" {
+		t.Errorf("HashCmd = %v, want [echo hash]", cmdc.HashCmd)
+	}
+	if len(cmdc.PrepareCmd) == 0 || cmdc.PrepareCmd[1] != "prepare" {
+		t.Errorf("PrepareCmd = %v, want [echo prepare]", cmdc.PrepareCmd)
+	}
+	if cmdc.Workers != 8 {
+		t.Errorf("Workers = %d, want 8", cmdc.Workers)
 	}
 }
 

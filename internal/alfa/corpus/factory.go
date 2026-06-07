@@ -34,6 +34,9 @@ func FromConfig(cc config.CorpusConfig) (Corpus, error) {
 			CorpusName: cc.Name,
 			ListCmd:    cc.ListCmd,
 			ReadCmd:    cc.ReadCmd,
+			HashCmd:    cc.HashCmd,
+			PrepareCmd: cc.PrepareCmd,
+			Workers:    cc.Workers,
 			MaxChars:   cc.ResolvedMaxChars(),
 		}, nil
 	default:
