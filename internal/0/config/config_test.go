@@ -264,7 +264,7 @@ paths = ["*.go"]
 	if err != nil {
 		t.Fatalf("parse error: %v", err)
 	}
-	corpora := DecodeCorpora(doc)
+	corpora := doc.Data().Corpora
 	if len(corpora) != 2 {
 		t.Fatalf("expected 2 corpora, got %d", len(corpora))
 	}
@@ -314,7 +314,7 @@ paths = ["*.md"]
 		t.Errorf("model path wrong")
 	}
 
-	corpora := DecodeCorpora(doc)
+	corpora := doc.Data().Corpora
 	if len(corpora) != 1 {
 		t.Fatalf("expected 1 corpus, got %d", len(corpora))
 	}
@@ -647,7 +647,7 @@ model = "qwen3-4b"
 	if err != nil {
 		t.Fatalf("parse error: %v", err)
 	}
-	corpora := DecodeCorpora(doc)
+	corpora := doc.Data().Corpora
 	if len(corpora) != 1 {
 		t.Fatalf("got %d corpora, want 1", len(corpora))
 	}

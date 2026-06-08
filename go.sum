@@ -6,6 +6,12 @@ github.com/amarbel-llc/tap/go v0.1.5 h1:/SzwmaUmo1WIUcU/RCtujEAl2IK8sg1x6V/Rgwgc
 github.com/amarbel-llc/tap/go v0.1.5/go.mod h1:zagkpdJWCOQIfCjy2BHFnZL6vxc27fTDbyUutJsJmvk=
 github.com/amarbel-llc/tommy v0.2.3 h1:OUIQZeqaQ3Dauw3o0/l52hviY+1WxYdMBpe1EGLMIDc=
 github.com/amarbel-llc/tommy v0.2.3/go.mod h1:kG0fD+lPC5mevUK4ycd2746F9bXz84DY2UZRbPaIeYo=
+github.com/amarbel-llc/tommy v0.4.0 h1:REXsVzVnsWikw6hvTaJoiuNvUxt86ODtNdOsrgAtQs4=
+github.com/amarbel-llc/tommy v0.4.0/go.mod h1:kG0fD+lPC5mevUK4ycd2746F9bXz84DY2UZRbPaIeYo=
+github.com/amarbel-llc/tommy v0.4.1-0.20260608145719-fb7ab8098f7c h1:QBYmiZCQJuR3NofHaAXLG5RrlKXevXu4Uex/Q83qyUg=
+github.com/amarbel-llc/tommy v0.4.1-0.20260608145719-fb7ab8098f7c/go.mod h1:kG0fD+lPC5mevUK4ycd2746F9bXz84DY2UZRbPaIeYo=
+github.com/amarbel-llc/tommy v0.4.1 h1:eNGeKRrM8qD1D6iaEz/c7JnotXhI4FTycqWoNG2ItEY=
+github.com/amarbel-llc/tommy v0.4.1/go.mod h1:kG0fD+lPC5mevUK4ycd2746F9bXz84DY2UZRbPaIeYo=
 github.com/aymanbagabas/go-osc52/v2 v2.0.1 h1:HwpRHbFMcZLEVr42D4p7XBqjyuxQH5SMiErDT4WkJ2k=
 github.com/aymanbagabas/go-osc52/v2 v2.0.1/go.mod h1:uYgXzlJ7ZpABp8OJ+exZzJJhRNQ2ASbcXHWsFqH8hp8=
 github.com/charmbracelet/colorprofile v0.4.1 h1:a1lO03qTrSIRaK8c3JRxJDZOvhvIeSco3ej+ngLk1kk=

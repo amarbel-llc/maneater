@@ -172,9 +172,9 @@
         );
 
         # maneater-gen runs `go generate` against the source tree inside
-        # a nix sandbox and emits the generated config_tommy.go. The
+        # a nix sandbox and emits the generated schema_tommy.go. The
         # justfile `generate` recipe copies the result back into
-        # internal/0/config/. Keeps `go generate` out of host-side
+        # internal/0/config/schema/. Keeps `go generate` out of host-side
         # justfile recipes.
         #
         # Piggybacks on maneater-man-unwrapped so the gomod2nix vendor
@@ -191,20 +191,20 @@
             pkgs-master.gotools # provides goimports
           ];
           # After codegen, run goimports + gofumpt so the emitted
-          # config_tommy.go matches what the `fmt` recipe would produce;
+          # schema_tommy.go matches what the `fmt` recipe would produce;
           # otherwise `just generate` then `just test` would dirty the
           # working tree with formatting diffs the user didn't request.
           buildPhase = ''
             runHook preBuild
-            go generate ./internal/0/config
-            goimports -w internal/0/config/config_tommy.go
-            gofumpt -w internal/0/config/config_tommy.go
+            go generate ./internal/0/config/schema
+            goimports -w internal/0/config/schema/schema_tommy.go
+            gofumpt -w internal/0/config/schema/schema_tommy.go
             runHook postBuild
           '';
           installPhase = ''
             runHook preInstall
             mkdir -p $out
-            cp internal/0/config/config_tommy.go $out/
+            cp internal/0/config/schema/schema_tommy.go $out/
             runHook postInstall
           '';
         });

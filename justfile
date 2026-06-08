@@ -17,14 +17,15 @@ build:
 test-go: fmt
   nix build -L --rebuild .#maneater-unwrapped
 
-# Regenerate config_tommy.go via nix codegen lane. The maneater-gen derivation
-# runs `go generate ./internal/0/config` inside the build sandbox (where the
-# gomod2nix vendor cache is already wired up), then we copy the result back
-# into the working tree.
+# Regenerate schema_tommy.go via nix codegen lane. The maneater-gen derivation
+# runs `go generate ./internal/0/config/schema` inside the build sandbox (where
+# the gomod2nix vendor cache is already wired up), then we copy the result back
+# into the working tree. tommy names its output after the directive's source
+# file (schema.go -> schema_tommy.go).
 generate:
   nix build --out-link build/gen .#maneater-gen
-  cp build/gen/config_tommy.go internal/0/config/config_tommy.go
-  chmod u+w internal/0/config/config_tommy.go
+  cp build/gen/schema_tommy.go internal/0/config/schema/schema_tommy.go
+  chmod u+w internal/0/config/schema/schema_tommy.go
 
 # Regenerate gomod2nix.toml
 gomod2nix:
