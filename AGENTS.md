@@ -89,10 +89,15 @@ edit it manually.
 ## Testing
 
 - Pure Go tests (cosine, index, config, manpath) run without external deps
-- Embedding tests require `MANPAGE_MODEL_PATH` env var pointing to a GGUF model;
-  `just test-go-embedding [pattern]` runs them against the devshell's
-  `MANEATER_TEST_CONFIG` model (they always skip in the nix sandbox)
-- `search_quality_test.go` documents expected ranking behavior and known gaps
+- Mechanical embedding tests (load, embed, tokenize, context size) run in the
+  nix checkPhase: `maneater-unwrapped` sets `MANPAGE_MODEL_PATH` to the snowflake
+  FOD, so they exercise real model loading/inference on every build (darwin and
+  linux). Outside nix they skip unless `MANPAGE_MODEL_PATH` is set.
+- The subjective ranking suite (`search_quality_test.go`) is opt-in behind
+  `MANEATER_QUALITY_TESTS` so its quality assertions don't gate merges; two
+  currently fail against snowflake (issue #36). `just test-go-embedding
+  [pattern]` runs the full set (mechanical + ranking) against the devshell's
+  `MANEATER_TEST_CONFIG` model.
 
 ## Nix
 

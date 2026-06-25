@@ -20,7 +20,6 @@ static void maneater_install_log_redirect(void) {
 import "C"
 
 import (
-	"fmt"
 	"io"
 	"os"
 	"path/filepath"
@@ -44,18 +43,20 @@ func installLlamaLogRedirect() {
 	logOnce.Do(func() {
 		defer C.maneater_install_log_redirect()
 
+		// The llama.cpp log is best-effort diagnostics. When its
+		// location is unresolvable or unwritable — e.g. a read-only
+		// $HOME like the nix build sandbox's /homeless-shelter — fall
+		// back silently to io.Discard rather than printing to stderr,
+		// so a non-essential log can't pollute command output.
 		path, err := llamaLogPath()
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "maneater: cannot resolve llama log path: %v\n", err)
 			return
 		}
 		if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
-			fmt.Fprintf(os.Stderr, "maneater: cannot create %s: %v\n", filepath.Dir(path), err)
 			return
 		}
 		f, err := os.OpenFile(path, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o644)
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "maneater: cannot open %s: %v\n", path, err)
 			return
 		}
 		logMu.Lock()

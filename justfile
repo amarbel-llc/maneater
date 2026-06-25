@@ -234,17 +234,19 @@ man-tree:
   ln -sf ../../../cmd/maneater/maneater.1 build/man/man1/maneater.1
   ln -sf ../../../cmd/maneater/maneater.toml.5 build/man/man5/maneater.toml.5
 
-# Run the model-dependent embedding Go tests locally. The nix checkPhase
-# (`just test-go`) always skips these because MANPAGE_MODEL_PATH is unset in
-# the sandbox; this recipe resolves the snowflake model path out of
-# MANEATER_TEST_CONFIG (set by the devshell) and runs the tests against it.
+# Run the model-dependent embedding Go tests locally, including the
+# opt-in subjective ranking suite (search_quality_test.go, gated on
+# MANEATER_QUALITY_TESTS — see issue #36). The nix checkPhase runs the
+# mechanical load/embed/tokenize tests but not the ranking suite; this
+# recipe resolves the snowflake model path out of MANEATER_TEST_CONFIG
+# (set by the devshell) and runs the full set against it.
 [group('test')]
 test-go-embedding run='.':
   #!/usr/bin/env bash
   set -euo pipefail
   : "${MANEATER_TEST_CONFIG:?run inside nix devshell (direnv)}"
   model=$(grep -oP 'path = "\K[^"]+' "$MANEATER_TEST_CONFIG")
-  MANPAGE_MODEL_PATH="$model" go test -v -run "{{run}}" ./internal/0/embedding/
+  MANPAGE_MODEL_PATH="$model" MANEATER_QUALITY_TESTS=1 go test -v -run "{{run}}" ./internal/0/embedding/
 
 # Run bats integration tests (against the wrapped binary so madder is on its PATH).
 # --no-sandbox bypasses batman's fence (bubblewrap) wrapper so the wrapped

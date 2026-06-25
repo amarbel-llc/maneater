@@ -151,6 +151,15 @@
             # internal/0/embedding's loader at the right directory; see
             # backend_init.go.
             CGO_CFLAGS = "-DMANEATER_GGML_BACKEND_DIR=\"${pkgs.llama-cpp}/bin\"";
+            # Point the embedding tests at the snowflake FOD so the
+            # checkPhase exercises real model loading and inference
+            # instead of skipping (the tests skip when MANPAGE_MODEL_PATH
+            # is unset). Referencing the FOD pulls it into the sandbox.
+            # Cross-platform: llama-cpp builds with GGML_BACKEND_DL on
+            # every platform and ships a CPU backend .so in bin/ (Metal
+            # is darwin-only), so CPU inference runs headless in both the
+            # darwin and linux sandboxes. See backend_init.go.
+            MANPAGE_MODEL_PATH = snowflake-model;
             # checkPhase mirrors madder/go/default.nix:159-163. The default
             # goCheckHook only tests subPackages (cmd/* dirs with no tests);
             # this override runs the full unit-test surface inside the

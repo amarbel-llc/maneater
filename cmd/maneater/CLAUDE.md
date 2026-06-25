@@ -49,7 +49,9 @@ in buildInputs. Wrapped binary adds mandoc, pandoc, tldr to PATH.
 
 ## Testing
 
-- Embedding tests in `internal/embedding/` require `MANPAGE_MODEL_PATH` env var
-  pointing to the nomic GGUF model; they are skipped otherwise
-- `search_quality_test.go` documents expected ranking behavior and known
-  limitations --- update these when changing the embedding pipeline
+- Mechanical embedding tests in `internal/0/embedding/` run in the nix
+  checkPhase (`maneater-unwrapped` sets `MANPAGE_MODEL_PATH` to the snowflake
+  FOD); outside nix they skip unless `MANPAGE_MODEL_PATH` is set
+- `search_quality_test.go` is the opt-in subjective ranking suite (gated on
+  `MANEATER_QUALITY_TESTS`); it documents expected ranking behavior and known
+  gaps --- update these when changing the embedding pipeline. See issue #36.
