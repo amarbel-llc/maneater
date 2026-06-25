@@ -86,6 +86,23 @@ gguf-sri-hash url:
   fi
   nix hash convert --to sri --hash-algo sha256 "$hex"
 
+# Dump the backend-registration symbols exported by the llama-cpp the
+# devshell links against (resolved via `pkg-config --variable=libdir
+# llama`). Disambiguates the static-registration API
+# (ggml_backend_cpu_reg / ggml_backend_register) from the dynamic
+# loader (ggml_backend_load_all) when a llama.cpp bump changes how
+# backends self-register. See maneater "no backends are loaded" debug.
+[group('debug')]
+debug-llama-backend-syms:
+  #!/usr/bin/env bash
+  set -euo pipefail
+  libdir="$(pkg-config --variable=libdir llama)"
+  echo "libdir: $libdir"
+  for lib in "$libdir"/libggml.dylib "$libdir"/libggml-base.dylib; do
+    echo "== $lib =="
+    nm -gU "$lib" 2>/dev/null | grep -iE 'backend_(cpu_reg|register|load_all|reg_count|dev_count)|backend_metal_reg|ggml_backend_init_best' || echo "  (no matching symbols)"
+  done
+
 # Snapshot HF's GGUF + feature-extraction model list for offline
 # analysis. Reusable for "what's currently shipping as GGUF embedding"
 # surveys; output lands at .tmp/hf-gguf-embed.json by default.

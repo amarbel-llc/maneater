@@ -142,6 +142,15 @@
             CGO_ENABLED = "1";
             nativeBuildInputs = [ pkgs.pkg-config ];
             buildInputs = [ pkgs.llama-cpp ];
+            # llama-cpp ships its compute backends (libggml-cpu-*.so,
+            # libggml-metal.so) as separate dynamic libraries under
+            # ${llama-cpp}/bin. ggml_backend_load_all() only scans the
+            # running binary's own directory, which in the nix layout
+            # does not contain them, so without this the model load
+            # fails with "no backends are loaded". The -D points
+            # internal/0/embedding's loader at the right directory; see
+            # backend_init.go.
+            CGO_CFLAGS = "-DMANEATER_GGML_BACKEND_DIR=\"${pkgs.llama-cpp}/bin\"";
             # checkPhase mirrors madder/go/default.nix:159-163. The default
             # goCheckHook only tests subPackages (cmd/* dirs with no tests);
             # this override runs the full unit-test surface inside the
@@ -267,6 +276,12 @@
             purse-first.packages.${system}.dagnabit
           ];
           MANEATER_TEST_CONFIG = maneater-test-toml;
+          # Mirror maneater-unwrapped's CGO_CFLAGS so devshell `go test`
+          # / `go build` resolve llama-cpp's backend dylibs the same way
+          # the nix build does. Without it the embedding loader falls
+          # back to the executable-dir scan and fails with "no backends
+          # are loaded". See backend_init.go.
+          CGO_CFLAGS = "-DMANEATER_GGML_BACKEND_DIR=\"${pkgs.llama-cpp}/bin\"";
         };
       }
     );

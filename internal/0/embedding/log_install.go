@@ -24,6 +24,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 )
 
@@ -31,6 +32,12 @@ var (
 	logOnce   sync.Once
 	logMu     sync.Mutex
 	logWriter io.Writer = io.Discard
+
+	// logCapture, when non-nil, accumulates llama.cpp log output
+	// alongside the file log so a failed model load can fold the
+	// underlying reason into its error. Guarded by logMu (the log
+	// callback already holds it). nil when no capture is active.
+	logCapture *strings.Builder
 )
 
 func installLlamaLogRedirect() {
@@ -61,6 +68,38 @@ func writeLlamaLog(msg string) {
 	logMu.Lock()
 	defer logMu.Unlock()
 	_, _ = io.WriteString(logWriter, msg)
+	if logCapture != nil {
+		logCapture.WriteString(msg)
+	}
+}
+
+// startLlamaLogCapture begins accumulating llama.cpp log output in
+// memory (in addition to the file log). It is not reentrant: a single
+// capture is active at a time, serialized by the caller holding the
+// load through stopLlamaLogCapture. Returns false if a capture is
+// already active, in which case the caller must not capture.
+func startLlamaLogCapture() bool {
+	logMu.Lock()
+	defer logMu.Unlock()
+	if logCapture != nil {
+		return false
+	}
+	logCapture = &strings.Builder{}
+	return true
+}
+
+// stopLlamaLogCapture ends the active capture and returns the
+// accumulated log output. Safe to call after a failed
+// startLlamaLogCapture (returns "").
+func stopLlamaLogCapture() string {
+	logMu.Lock()
+	defer logMu.Unlock()
+	if logCapture == nil {
+		return ""
+	}
+	captured := logCapture.String()
+	logCapture = nil
+	return captured
 }
 
 func llamaLogPath() (string, error) {

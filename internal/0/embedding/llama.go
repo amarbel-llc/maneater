@@ -8,6 +8,7 @@ import "C"
 import (
 	"fmt"
 	"math"
+	"strings"
 	"unsafe"
 )
 
@@ -82,6 +83,7 @@ func (decoderStrategy) RunBatch(ctx *C.struct_llama_context, batch C.struct_llam
 // only the first nCtx tokens.
 func NewEmbedder(modelPath string, nCtx int, poolingType string, truncate bool) (*Embedder, error) {
 	installLlamaLogRedirect()
+	ensureBackendsLoaded()
 
 	if nCtx <= 0 {
 		nCtx = 512
@@ -90,9 +92,25 @@ func NewEmbedder(modelPath string, nCtx int, poolingType string, truncate bool) 
 	cPath := C.CString(modelPath)
 	defer C.free(unsafe.Pointer(cPath))
 
+	// llama_model_load_from_file reports nil on failure with no detail;
+	// the actual reason (unsupported GGUF version, unknown architecture,
+	// tensor mismatch, allocation failure) is emitted to llama.cpp's log
+	// callback. Capture that output around the load so the error carries
+	// the reason instead of just the path.
+	captureActive := startLlamaLogCapture()
+
 	mp := C.llama_model_default_params()
 	model := C.llama_model_load_from_file(cPath, mp)
+
+	var loadLog string
+	if captureActive {
+		loadLog = stopLlamaLogCapture()
+	}
+
 	if model == nil {
+		if reason := lastLlamaError(loadLog); reason != "" {
+			return nil, fmt.Errorf("failed to load model %s: %s", modelPath, reason)
+		}
 		return nil, fmt.Errorf("failed to load model: %s", modelPath)
 	}
 
@@ -141,6 +159,35 @@ func NewEmbedder(modelPath string, nCtx int, poolingType string, truncate bool) 
 		truncate: truncate,
 		strategy: strategy,
 	}, nil
+}
+
+// lastLlamaError distills llama.cpp's captured load output into a
+// single human-meaningful reason for an error message. It prefers the
+// last line that looks like an error/failure diagnostic; failing that,
+// the last non-empty line (the load typically aborts right after
+// printing the cause). Returns "" when the capture is empty.
+func lastLlamaError(captured string) string {
+	if captured == "" {
+		return ""
+	}
+
+	var lastNonEmpty, lastErr string
+	for _, line := range strings.Split(captured, "\n") {
+		line = strings.TrimSpace(line)
+		if line == "" {
+			continue
+		}
+		lastNonEmpty = line
+		lower := strings.ToLower(line)
+		if strings.Contains(lower, "error") || strings.Contains(lower, "fail") || strings.Contains(lower, "unsupported") || strings.Contains(lower, "unknown") {
+			lastErr = line
+		}
+	}
+
+	if lastErr != "" {
+		return lastErr
+	}
+	return lastNonEmpty
 }
 
 func (e *Embedder) Embed(text string) ([]float32, error) {
