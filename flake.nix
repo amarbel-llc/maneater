@@ -39,6 +39,20 @@
       inputs.nixpkgs-master.follows = "nixpkgs-master";
       inputs.utils.follows = "utils";
     };
+    madder.inputs.bats.follows = "bats";
+    tap.inputs.bats.follows = "bats";
+    tommy.inputs.bats.follows = "bats";
+    igloo.inputs.treefmt-nix.follows = "bats/treefmt-nix";
+    tap.inputs.treefmt-nix.follows = "bats/treefmt-nix";
+    utils.inputs.systems.follows = "igloo/systems";
+    igloo.inputs.nixpkgs-master.follows = "nixpkgs-master";
+    madder.inputs.nixpkgs-master.follows = "nixpkgs-master";
+    madder.inputs.purse-first.follows = "purse-first";
+    tap.inputs.purse-first.follows = "purse-first";
+    tap.inputs.gomod2nix.follows = "purse-first/gomod2nix";
+    madder.inputs.tap.follows = "tap";
+    tommy.inputs.tap.follows = "tap";
+    madder.inputs.tommy.follows = "tommy";
   };
 
   outputs =
@@ -57,9 +71,9 @@
       # version.env at repo root is the single source of truth for the
       # release version. Burnt into the binary via the fork's
       # auto-injected -ldflags (-X main.version / -X main.commit).
-      maneaterVersion = builtins.head (builtins.match
-        ".*MANEATER_VERSION=([^\n]+).*"
-        (builtins.readFile ./version.env));
+      maneaterVersion = builtins.head (
+        builtins.match ".*MANEATER_VERSION=([^\n]+).*" (builtins.readFile ./version.env)
+      );
       # shortRev for clean builds, dirtyShortRev for dirty working trees
       # (so devshell builds show `dirty-abcdef` rather than masquerading
       # as a clean release), "unknown" as a last-resort fallback.
@@ -84,7 +98,12 @@
         # site silently falls back to organic gomod2nix.toml resolution
         # and resurrects the lockstep regression.
         goFlakeInputs = import ./gomod.nix {
-          inherit tap tommy purse-first system;
+          inherit
+            tap
+            tommy
+            purse-first
+            system
+            ;
         };
 
         snowflake-model = pkgs.fetchGgufModel {

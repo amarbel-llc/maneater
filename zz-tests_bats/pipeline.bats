@@ -129,7 +129,7 @@ function manpages_corpus_indexes_alongside_files { # @test
 
   export MANPATH="$man_tree"
   if [[ "$(manpath 2>/dev/null)" != "$MANPATH" ]]; then
-    skip "manpath(1) does not honor \$MANPATH exactly; host man tree would leak in"
+    skip 'manpath(1) does not honor $MANPATH exactly; host man tree would leak in'
   fi
 
   # Pre-create the tldr cache so prepare-cmd skips `tldr -u` (no network),

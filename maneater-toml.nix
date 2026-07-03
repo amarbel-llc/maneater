@@ -1,4 +1,8 @@
-{ pkgs, snowflake-model, qwen3-embedding-4b-model }:
+{
+  pkgs,
+  snowflake-model,
+  qwen3-embedding-4b-model,
+}:
 let
   snowflakeStanza = ''
     [models.snowflake]
