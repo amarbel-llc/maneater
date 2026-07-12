@@ -1,6 +1,7 @@
 #! /bin/bash -e
 
 if [[ -z $BATS_TEST_TMPDIR ]]; then
+  # shellcheck disable=SC2016 # the message names the variable, deliberately unexpanded
   echo 'common.bash loaded before $BATS_TEST_TMPDIR set. aborting.' >&2
 
   cat >&2 <<-'EOM'

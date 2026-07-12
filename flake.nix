@@ -27,6 +27,16 @@
       inputs.utils.follows = "utils";
     };
 
+    # conformist provides the linter/formatter multiplexer, its Nix module
+    # library (conformist.lib), and the eng-convention presets. First eng repo
+    # consuming it from the forge (linenisgreat/conformist) rather than github.
+    conformist = {
+      url = "git+https://code.linenisgreat.com/conformist.git";
+      inputs.igloo.follows = "igloo";
+      inputs.nixpkgs-master.follows = "nixpkgs-master";
+      inputs.utils.follows = "utils";
+    };
+
     madder = {
       url = "github:amarbel-llc/madder";
       inputs.igloo.follows = "igloo";
@@ -64,6 +74,7 @@
       tap,
       tommy,
       bats,
+      conformist,
       madder,
       purse-first,
     }:
@@ -91,6 +102,28 @@
         };
 
         go = pkgs-master.go_1_26;
+
+        conformistPkg = conformist.packages.${system}.default;
+
+        # Pure lane: the eng presets (+ the canonical goimports->gofumpt chain)
+        # and this repo's overlay (./conformist.nix). Drives `nix fmt` and the
+        # sandboxed `checks.formatting`.
+        conformistEval = conformist.lib.evalModule pkgs {
+          imports = [
+            conformist.lib.presets.eng
+            conformist.lib.presets.eng-go
+            ./conformist.nix
+          ];
+          package = conformistPkg;
+        };
+
+        # Impure lane: the git-state checks (git-remotes, sweatfile, agents-md,
+        # gomod2nix) run against the working tree via `just lint-worktree`.
+        conformistImpureEval = conformist.lib.evalModule pkgs {
+          imports = [ conformist.lib.presets.eng-impure ];
+          package = conformistPkg;
+          projectRootFile = "flake.nix";
+        };
 
         # flake-input-go_mod consumer-half bridge. See gomod.nix and
         # amarbel-llc/nixpkgs RFC 0001. Threaded into every
@@ -274,6 +307,9 @@
             '';
       in
       {
+        formatter = conformistEval.config.build.wrapper;
+        checks.formatting = conformistEval.config.build.check self;
+
         packages = {
           inherit
             maneater
@@ -282,10 +318,16 @@
             maneater-gen
             ;
           default = maneater;
+          conformist-impure-config = conformistImpureEval.config.build.configFile;
+          conformist-pre-commit = conformistEval.config.build.preCommit;
+          conformist-repair = conformistEval.config.build.repair;
         };
 
         devShells.default = pkgs-master.mkShell {
           packages = [
+            conformistPkg
+            conformistEval.config.build.preCommit
+            conformistEval.config.build.repair
             goEnv
             pkgs-master.gopls
             pkgs-master.gotools

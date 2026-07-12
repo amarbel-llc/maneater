@@ -1,2 +1,8 @@
 [hooks]
 pre-merge = "just"
+# The toolchain-hermetic staged-formatting hook from this repo's conformist
+# config (packages.conformist-pre-commit, on the devShell PATH).
+pre-commit = "conformist-pre-commit"
+# Merge-time repair is opt-in; the per-commit hook already keeps the tree
+# conformant. Flip on to auto-repair during spinclass merges:
+# repair = "conformist-repair"

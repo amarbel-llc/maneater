@@ -1,12 +1,44 @@
-default: build verify test
+default: lint build verify test
 
-verify: verify-devshell check-dagnabit
+lint: lint-fmt lint-worktree
+
+build: build-gomod2nix build-go build-nix build-wrapped
+
+verify: verify-devshell verify-dagnabit
 
 test: test-go test-bats
 
+codemod: codemod-fmt codemod-generate codemod-dagnabit
+
+codemod-fmt: codemod-fmt-tree
+
+# Read-only formatting + the eng presets' file-based linters, via the sandboxed
+# checks.formatting derivation.
+[group('lint')]
+lint-fmt:
+  #!/usr/bin/env bash
+  set -euo pipefail
+  system=$(nix eval --raw --impure --expr 'builtins.currentSystem')
+  nix build ".#checks.${system}.formatting" --no-link --print-build-logs
+
+# Impure eng checks (git remotes, sweatfile, agents-md, gomod2nix) against the
+# working tree; conformist comes from the devShell PATH.
+[group('lint')]
+lint-worktree:
+  #!/usr/bin/env bash
+  set -euo pipefail
+  cfg=$(nix build --no-link --print-out-paths '.#conformist-impure-config')
+  conformist check --config-file "$cfg" --tree-root .
+
+# Format the tree in place (repair mode) via `nix fmt`.
+[group('codemod')]
+codemod-fmt-tree:
+  nix fmt
+
 # Build unwrapped maneater binary via nix. Output at build/result/bin/maneater.
 # Wrapped variant (with madder/mandoc/pandoc/tldr on PATH) is `just build-wrapped`.
-build:
+[group('build')]
+build-go:
   nix build --out-link build/result .#maneater-unwrapped
 
 # Run all Go tests via nix. The maneater-unwrapped derivation's checkPhase runs
@@ -14,7 +46,7 @@ build:
 # even when the store path is cached, and `-L` streams check output so test
 # logs are visible.
 [group('test')]
-test-go: fmt
+test-go: codemod-fmt
   nix build -L --rebuild .#maneater-unwrapped
 
 # Regenerate schema_tommy.go via nix codegen lane. The maneater-gen derivation
@@ -22,16 +54,19 @@ test-go: fmt
 # the gomod2nix vendor cache is already wired up), then we copy the result back
 # into the working tree. tommy names its output after the directive's source
 # file (schema.go -> schema_tommy.go).
-generate:
+[group('codemod')]
+codemod-generate:
   nix build --out-link build/gen .#maneater-gen
   cp build/gen/schema_tommy.go internal/0/config/schema/schema_tommy.go
   chmod u+w internal/0/config/schema/schema_tommy.go
 
 # Regenerate gomod2nix.toml
-gomod2nix:
+[group('build')]
+build-gomod2nix:
   gomod2nix
 
 # Build nix package
+[group('build')]
 build-nix:
   nix build --show-trace
 
@@ -45,16 +80,17 @@ verify-devshell:
   nix build --no-link .#devShells.{{ arch() }}-linux.default
 
 # Build the wrapped maneater (madder + mandoc + pandoc + tldr on its PATH)
+[group('build')]
 build-wrapped:
   nix build --out-link build/result-wrapped .#default
 
 # Dry-run dagnabit reposition to see how the internal/ DAG has drifted from NATO tiering.
-[group('check')]
-check-dagnabit:
+[group('post-build')]
+verify-dagnabit:
   dagnabit -n -v internal
 
 # Apply dagnabit reposition to realign internal/ packages with NATO tiering.
-[group('dev')]
+[group('codemod')]
 codemod-dagnabit:
   dagnabit -v internal
 
@@ -64,9 +100,9 @@ codemod-dagnabit:
 # updating a fetchGgufModel entry in flake.nix.
 #
 # Usage:
-#   just gguf-sri-hash https://huggingface.co/Qwen/Qwen3-Embedding-4B-GGUF/resolve/main/Qwen3-Embedding-4B-Q8_0.gguf
-[group('dev')]
-gguf-sri-hash url:
+#   just debug-gguf-sri-hash https://huggingface.co/Qwen/Qwen3-Embedding-4B-GGUF/resolve/main/Qwen3-Embedding-4B-Q8_0.gguf
+[group('debug')]
+debug-gguf-sri-hash url:
   #!/usr/bin/env bash
   set -euo pipefail
   url="{{url}}"
@@ -103,9 +139,6 @@ debug-llama-backend-syms:
     nm -gU "$lib" 2>/dev/null | grep -iE 'backend_(cpu_reg|register|load_all|reg_count|dev_count)|backend_metal_reg|ggml_backend_init_best' || echo "  (no matching symbols)"
   done
 
-# Snapshot HF's GGUF + feature-extraction model list for offline
-# analysis. Reusable for "what's currently shipping as GGUF embedding"
-# surveys; output lands at .tmp/hf-gguf-embed.json by default.
 # Smoke-test the FDR-0001 smart-retrieval corpus profile end-to-end:
 # index this repo's docs/ tree with Qwen3-Embedding-4B at 4K context
 # and run a couple of search queries against it. Times each step so
@@ -118,7 +151,7 @@ debug-llama-backend-syms:
 #
 # See docs/features/0001-smart-retrieval-corpus-profile.md.
 [group('explore')]
-smart-profile-smoke: build-wrapped
+explore-smart-profile-smoke: build-wrapped
   #!/usr/bin/env bash
   set -euo pipefail
 
@@ -182,16 +215,19 @@ smart-profile-smoke: build-wrapped
   echo "==> search 'embedding model context length' --top-k 3"
   /usr/bin/time -f '  %e seconds' "$MANEATER" search "embedding model context length" --top-k 3 || true
 
+# Snapshot HF's GGUF + feature-extraction model list for offline
+# analysis. Reusable for "what's currently shipping as GGUF embedding"
+# surveys; output lands at .tmp/hf-gguf-embed.json by default.
 [group('explore')]
-hf-gguf-embed url='https://huggingface.co/api/models?filter=gguf,feature-extraction&full=false&limit=1000&sort=downloads&direction=-1' out='.tmp/hf-gguf-embed.json':
+explore-hf-gguf-embed url='https://huggingface.co/api/models?filter=gguf,feature-extraction&full=false&limit=1000&sort=downloads&direction=-1' out='.tmp/hf-gguf-embed.json':
   curl -sSL "{{url}}" -o "{{out}}"
   echo "Saved $(wc -c < {{out}}) bytes to {{out}}"
   echo "Records: $(jq 'length' {{out}})"
 
-# Companion to hf-gguf-embed: fetches results 1001-2000 (the API caps
+# Companion to explore-hf-gguf-embed: fetches results 1001-2000 (the API caps
 # limit=1000, so we paginate via skip).
 [group('explore')]
-hf-gguf-embed-page2:
+explore-hf-gguf-embed-page2:
   curl -sSL 'https://huggingface.co/api/models?filter=gguf,feature-extraction&full=false&limit=1000&sort=downloads&direction=-1&skip=1000' -o .tmp/hf-gguf-embed-page2.json
   echo "Records: $(jq 'length' .tmp/hf-gguf-embed-page2.json)"
 
@@ -199,20 +235,20 @@ hf-gguf-embed-page2:
 # modes return different populations; comparing them surfaces tag
 # mismatches.
 [group('explore')]
-hf-gguf-embed-other:
+explore-hf-gguf-embed-other:
   curl -sSL 'https://huggingface.co/api/models?other=gguf,feature-extraction&full=false&limit=1000&sort=downloads&direction=-1' -o .tmp/hf-gguf-embed-other.json
   echo "Records: $(jq 'length' .tmp/hf-gguf-embed-other.json)"
 
 # Just the headers — useful for confirming pagination cursors and
 # rate-limit info before pulling the body.
 [group('explore')]
-hf-gguf-embed-headers:
+explore-hf-gguf-embed-headers:
   curl -sSLI 'https://huggingface.co/api/models?filter=gguf,feature-extraction&full=false&limit=1000&sort=downloads&direction=-1'
 
 # Concatenate page1 + page2 snapshots into a single JSON array for jq
 # aggregations across the merged set.
 [group('explore')]
-hf-gguf-embed-merge:
+explore-hf-gguf-embed-merge:
   jq -s 'add' .tmp/hf-gguf-embed.json .tmp/hf-gguf-embed-page2.json > .tmp/hf-gguf-embed-all.json
   echo "Total: $(jq 'length' .tmp/hf-gguf-embed-all.json)"
 
@@ -222,14 +258,16 @@ hf-gguf-embed-merge:
 # crash from a user corpus). Runs from $HOME so the repo-local prototype
 # maneater.toml (stale; see maneater#34) doesn't overlay the real config.
 [group('explore')]
-index-real: build-wrapped
+explore-index-real: build-wrapped
   #!/usr/bin/env bash
   set -euo pipefail
   cd "$HOME"
   exec "{{justfile_directory()}}/build/result-wrapped/bin/maneater" index
 
+# Symlink the repo's roff sources into a build/man tree shaped like a real
+# manpath, for pointing MANPATH at during man-rendering dev loops.
 [group('explore')]
-man-tree:
+explore-man-tree:
   mkdir -p build/man/man1 build/man/man5
   ln -sf ../../../cmd/maneater/maneater.1 build/man/man1/maneater.1
   ln -sf ../../../cmd/maneater/maneater.toml.5 build/man/man5/maneater.toml.5
@@ -238,10 +276,12 @@ man-tree:
 # opt-in subjective ranking suite (search_quality_test.go, gated on
 # MANEATER_QUALITY_TESTS — see issue #36). The nix checkPhase runs the
 # mechanical load/embed/tokenize tests but not the ranking suite; this
-# recipe resolves the snowflake model path out of MANEATER_TEST_CONFIG
-# (set by the devshell) and runs the full set against it.
-[group('test')]
-test-go-embedding run='.':
+# opt-in debug lane resolves the snowflake model path out of
+# MANEATER_TEST_CONFIG (set by the devshell) and runs the full set
+# against it. Deliberately NOT in the `test` aggregate: the quality
+# suite is subjective and model-heavy.
+[group('debug')]
+debug-embedding-quality run='.':
   #!/usr/bin/env bash
   set -euo pipefail
   : "${MANEATER_TEST_CONFIG:?run inside nix devshell (direnv)}"
@@ -256,22 +296,18 @@ test-go-embedding run='.':
 test-bats: build-wrapped
   MANEATER_BIN={{justfile_directory()}}/build/result-wrapped/bin/maneater bats --no-sandbox zz-tests_bats/
 
-# Format code
-fmt:
-  gofumpt -w .
-  goimports -w .
-
 # Regenerate the deterministic bench-manpath fixture pages
-# (zz-fixtures/manpages/man{1,5}/*). Output is byte-stable.
-[group('dev')]
-gen-manpages-fixtures:
+# (zz-fixtures/manpages/man{1,5}/*). Output is byte-stable, so this is an
+# on-demand regen lane, not part of any pipeline aggregate.
+[group('debug')]
+debug-gen-manpages-fixtures:
   zz-fixtures/manpages/gen.sh
 
 # Run wall-clock bench against a synthetic 200-file type=command corpus.
 # Uses the wrapped binary (so madder is on PATH) and MANEATER_TEST_CONFIG
 # (from the nix devshell). Results appended to docs/bench/<date>-bench.md.
-[group('bench')]
-bench: build-wrapped
+[group('debug')]
+debug-bench: build-wrapped
   #!/usr/bin/env bash
   set -euo pipefail
 
@@ -393,8 +429,8 @@ bench: build-wrapped
 # system manpath. Captures the expensive-read-cmd case (mandoc + pandoc
 # + tldr per page) that the synthetic `bench` recipe does not exercise.
 # Results appended to docs/bench/<date>-bench.md.
-[group('bench')]
-bench-manpath: build-wrapped
+[group('debug')]
+debug-bench-manpath: build-wrapped
   #!/usr/bin/env bash
   set -euo pipefail
 
