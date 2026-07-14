@@ -14,7 +14,7 @@
     };
 
     tommy = {
-      url = "git+https://code.linenisgreat.com/tommy.git";
+      url = "git+https://github.com/amarbel-llc/tommy.git";
       inputs.igloo.follows = "igloo";
       inputs.nixpkgs-master.follows = "nixpkgs-master";
       inputs.utils.follows = "utils";
@@ -38,13 +38,13 @@
     };
 
     madder = {
-      url = "git+https://code.linenisgreat.com/madder.git";
+      url = "git+https://github.com/amarbel-llc/madder.git";
       inputs.igloo.follows = "igloo";
       inputs.utils.follows = "utils";
     };
 
     purse-first = {
-      url = "git+https://code.linenisgreat.com/purse-first.git";
+      url = "git+https://github.com/amarbel-llc/purse-first.git";
       inputs.igloo.follows = "igloo";
       inputs.nixpkgs-master.follows = "nixpkgs-master";
       inputs.utils.follows = "utils";
