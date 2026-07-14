@@ -63,6 +63,9 @@
     madder.inputs.tap.follows = "tap";
     tommy.inputs.tap.follows = "tap";
     madder.inputs.tommy.follows = "tommy";
+    madder.inputs.conformist.follows = "conformist";
+    purse-first.inputs.conformist.follows = "conformist";
+    tommy.inputs.conformist.follows = "conformist";
   };
 
   outputs =
