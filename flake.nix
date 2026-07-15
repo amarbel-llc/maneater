@@ -2,7 +2,7 @@
   description = "Maneater: man page search index and semantic search CLI";
 
   inputs = {
-    igloo.url = "git+https://code.linenisgreat.com/igloo.git";
+    igloo.url = "git+https://github.com/amarbel-llc/igloo.git";
     nixpkgs-master.url = "github:NixOS/nixpkgs/567a49d1913ce81ac6e9582e3553dd90a955875f";
     utils.url = "https://flakehub.com/f/numtide/flake-utils/0.1.102";
 
@@ -31,7 +31,7 @@
     # library (conformist.lib), and the eng-convention presets. First eng repo
     # consuming it from the forge (linenisgreat/conformist) rather than github.
     conformist = {
-      url = "git+https://code.linenisgreat.com/conformist.git";
+      url = "git+https://github.com/amarbel-llc/conformist.git";
       inputs.igloo.follows = "igloo";
       inputs.nixpkgs-master.follows = "nixpkgs-master";
       inputs.utils.follows = "utils";
