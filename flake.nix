@@ -2,7 +2,7 @@
   description = "Maneater: man page search index and semantic search CLI";
 
   inputs = {
-    igloo.url = "git+https://github.com/amarbel-llc/igloo.git";
+    igloo.url = "git+https://code.linenisgreat.com/igloo.git";
     nixpkgs-master.url = "github:NixOS/nixpkgs/567a49d1913ce81ac6e9582e3553dd90a955875f";
     utils.url = "https://flakehub.com/f/numtide/flake-utils/0.1.102";
 
@@ -14,7 +14,7 @@
     };
 
     tommy = {
-      url = "git+https://github.com/amarbel-llc/tommy.git";
+      url = "git+https://code.linenisgreat.com/tommy.git";
       inputs.igloo.follows = "igloo";
       inputs.nixpkgs-master.follows = "nixpkgs-master";
       inputs.utils.follows = "utils";
@@ -31,20 +31,20 @@
     # library (conformist.lib), and the eng-convention presets. First eng repo
     # consuming it from the forge (linenisgreat/conformist) rather than github.
     conformist = {
-      url = "git+https://github.com/amarbel-llc/conformist.git";
+      url = "git+https://code.linenisgreat.com/conformist.git";
       inputs.igloo.follows = "igloo";
       inputs.nixpkgs-master.follows = "nixpkgs-master";
       inputs.utils.follows = "utils";
     };
 
     madder = {
-      url = "git+https://github.com/amarbel-llc/madder.git";
+      url = "git+https://code.linenisgreat.com/madder.git";
       inputs.igloo.follows = "igloo";
       inputs.utils.follows = "utils";
     };
 
     purse-first = {
-      url = "git+https://github.com/amarbel-llc/purse-first.git";
+      url = "git+https://code.linenisgreat.com/purse-first.git";
       inputs.igloo.follows = "igloo";
       inputs.nixpkgs-master.follows = "nixpkgs-master";
       inputs.utils.follows = "utils";
