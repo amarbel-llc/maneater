@@ -2,26 +2,26 @@
   description = "Maneater: man page search index and semantic search CLI";
 
   inputs = {
-    igloo.url = "git+https://code.linenisgreat.com/igloo.git";
+    igloo.url = "https://code.linenisgreat.com/igloo/archive/master.tar.gz";
     nixpkgs-master.url = "github:NixOS/nixpkgs/567a49d1913ce81ac6e9582e3553dd90a955875f";
     utils.url = "https://flakehub.com/f/numtide/flake-utils/0.1.102";
 
     tap = {
-      url = "git+https://code.linenisgreat.com/tap.git";
+      url = "https://code.linenisgreat.com/tap/archive/master.tar.gz";
       inputs.igloo.follows = "igloo";
       inputs.nixpkgs-master.follows = "nixpkgs-master";
       inputs.utils.follows = "utils";
     };
 
     tommy = {
-      url = "git+https://code.linenisgreat.com/tommy.git";
+      url = "https://code.linenisgreat.com/tommy/archive/master.tar.gz";
       inputs.igloo.follows = "igloo";
       inputs.nixpkgs-master.follows = "nixpkgs-master";
       inputs.utils.follows = "utils";
     };
 
     bats = {
-      url = "git+https://code.linenisgreat.com/bats.git";
+      url = "https://code.linenisgreat.com/bats/archive/master.tar.gz";
       inputs.igloo.follows = "igloo";
       inputs.nixpkgs-master.follows = "nixpkgs-master";
       inputs.utils.follows = "utils";
@@ -31,20 +31,20 @@
     # library (conformist.lib), and the eng-convention presets. First eng repo
     # consuming it from the forge (linenisgreat/conformist) rather than github.
     conformist = {
-      url = "git+https://code.linenisgreat.com/conformist.git";
+      url = "https://code.linenisgreat.com/conformist/archive/master.tar.gz";
       inputs.igloo.follows = "igloo";
       inputs.nixpkgs-master.follows = "nixpkgs-master";
       inputs.utils.follows = "utils";
     };
 
     madder = {
-      url = "git+https://code.linenisgreat.com/madder.git";
+      url = "https://code.linenisgreat.com/madder/archive/master.tar.gz";
       inputs.igloo.follows = "igloo";
       inputs.utils.follows = "utils";
     };
 
     purse-first = {
-      url = "git+https://code.linenisgreat.com/purse-first.git";
+      url = "https://code.linenisgreat.com/purse-first/archive/master.tar.gz";
       inputs.igloo.follows = "igloo";
       inputs.nixpkgs-master.follows = "nixpkgs-master";
       inputs.utils.follows = "utils";
