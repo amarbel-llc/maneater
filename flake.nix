@@ -52,8 +52,7 @@
     madder.inputs.bats.follows = "bats";
     tap.inputs.bats.follows = "bats";
     tommy.inputs.bats.follows = "bats";
-    igloo.inputs.treefmt-nix.follows = "bats/treefmt-nix";
-    tap.inputs.treefmt-nix.follows = "bats/treefmt-nix";
+    tap.inputs.treefmt-nix.follows = "igloo/treefmt-nix";
     utils.inputs.systems.follows = "igloo/systems";
     igloo.inputs.nixpkgs-master.follows = "nixpkgs-master";
     madder.inputs.nixpkgs-master.follows = "nixpkgs-master";
