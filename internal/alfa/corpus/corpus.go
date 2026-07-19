@@ -7,7 +7,7 @@ package corpus
 import (
 	"iter"
 
-	"github.com/amarbel-llc/maneater/internal/0/config"
+	"code.linenisgreat.com/maneater/internal/0/config"
 )
 
 // Document represents a single item to be embedded and indexed. If Texts is

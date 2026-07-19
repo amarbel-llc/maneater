@@ -29,9 +29,9 @@ import (
 	"os/exec"
 	"strings"
 
-	"github.com/amarbel-llc/maneater/internal/0/config"
-	"github.com/amarbel-llc/maneater/internal/0/execx"
-	"github.com/amarbel-llc/maneater/internal/0/madder"
+	"code.linenisgreat.com/maneater/internal/0/config"
+	"code.linenisgreat.com/maneater/internal/0/execx"
+	"code.linenisgreat.com/maneater/internal/0/madder"
 )
 
 // Store is the blob storage interface the maneater index/search

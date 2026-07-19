@@ -512,7 +512,7 @@ package main
 import (
 	"testing"
 
-	"github.com/amarbel-llc/maneater/internal/embedding"
+	"code.linenisgreat.com/maneater/internal/embedding"
 )
 
 func TestIncrementalBuildSkipsUnchanged(t *testing.T) {

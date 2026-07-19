@@ -1,7 +1,7 @@
 # Content-Addressed Index Cache
 
 **Date:** 2026-04-14
-**Issue:** [#2](https://github.com/amarbel-llc/maneater/issues/2)
+**Issue:** [#2](https://code.linenisgreat.com/maneater/issues/2)
 **Status:** approved
 
 ## Problem

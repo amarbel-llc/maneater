@@ -4,8 +4,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/amarbel-llc/maneater/internal/0/config"
-	"github.com/amarbel-llc/maneater/internal/alfa/corpus"
+	"code.linenisgreat.com/maneater/internal/0/config"
+	"code.linenisgreat.com/maneater/internal/alfa/corpus"
 )
 
 func TestExpandManpagesCorpusDefaults(t *testing.T) {

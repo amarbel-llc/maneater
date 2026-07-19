@@ -4,8 +4,8 @@ import (
 	"os"
 	"testing"
 
-	"github.com/amarbel-llc/maneater/internal/0/config"
-	"github.com/amarbel-llc/maneater/internal/alfa/corpus"
+	"code.linenisgreat.com/maneater/internal/0/config"
+	"code.linenisgreat.com/maneater/internal/alfa/corpus"
 )
 
 func collectDocuments(t *testing.T, c corpus.Corpus) ([]corpus.Document, []error) {

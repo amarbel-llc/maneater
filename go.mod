@@ -1,4 +1,4 @@
-module github.com/amarbel-llc/maneater
+module code.linenisgreat.com/maneater
 
 go 1.26
 

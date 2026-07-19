@@ -9,9 +9,9 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/amarbel-llc/maneater/internal/0/config"
-	"github.com/amarbel-llc/maneater/internal/0/manpath"
-	"github.com/amarbel-llc/maneater/internal/alfa/corpus"
+	"code.linenisgreat.com/maneater/internal/0/config"
+	"code.linenisgreat.com/maneater/internal/0/manpath"
+	"code.linenisgreat.com/maneater/internal/alfa/corpus"
 )
 
 // indexDataDir returns the per-corpus on-disk cache path that holds the

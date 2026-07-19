@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/amarbel-llc/maneater/internal/0/config"
-	"github.com/amarbel-llc/maneater/internal/alfa/storage"
+	"code.linenisgreat.com/maneater/internal/0/config"
+	"code.linenisgreat.com/maneater/internal/alfa/storage"
 	tap "github.com/amarbel-llc/tap/go/pkgs/writer"
 )
 

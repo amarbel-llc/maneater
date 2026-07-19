@@ -11,7 +11,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/amarbel-llc/maneater/internal/0/config/schema"
+	"code.linenisgreat.com/maneater/internal/0/config/schema"
 )
 
 // The config schema types and the tommy-generated codec live in the leaf

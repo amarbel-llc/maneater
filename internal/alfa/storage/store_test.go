@@ -7,9 +7,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/amarbel-llc/maneater/internal/0/config"
-	"github.com/amarbel-llc/maneater/internal/0/madder"
-	"github.com/amarbel-llc/maneater/internal/alfa/storage"
+	"code.linenisgreat.com/maneater/internal/0/config"
+	"code.linenisgreat.com/maneater/internal/0/madder"
+	"code.linenisgreat.com/maneater/internal/alfa/storage"
 )
 
 // TestFromConfigDefaultsToMadder verifies that an empty StorageConfig

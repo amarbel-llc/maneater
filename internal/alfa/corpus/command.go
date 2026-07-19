@@ -11,7 +11,7 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/amarbel-llc/maneater/internal/0/execx"
+	"code.linenisgreat.com/maneater/internal/0/execx"
 )
 
 // CommandCorpus indexes documents via a pair-or-quartet of external commands.

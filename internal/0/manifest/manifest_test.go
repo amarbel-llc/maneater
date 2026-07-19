@@ -6,7 +6,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/amarbel-llc/maneater/internal/0/manifest"
+	"code.linenisgreat.com/maneater/internal/0/manifest"
 )
 
 func TestManifestRoundTrip(t *testing.T) {

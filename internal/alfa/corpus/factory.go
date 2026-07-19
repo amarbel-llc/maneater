@@ -3,7 +3,7 @@ package corpus
 import (
 	"fmt"
 
-	"github.com/amarbel-llc/maneater/internal/0/config"
+	"code.linenisgreat.com/maneater/internal/0/config"
 )
 
 // FromConfig builds a Corpus from a CorpusConfig for the "files" and
