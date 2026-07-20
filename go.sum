@@ -1,11 +1,11 @@
+code.linenisgreat.com/purse-first/libs/dewey v0.5.0 h1:+sd1CsNmJqPOv0K8D/qHdN62vLngYMUohHE0h52uJZU=
+code.linenisgreat.com/purse-first/libs/dewey v0.5.0/go.mod h1:IGnHB011B9XE3LU4EvZHHyL8fA3qAeQBi1QMmDXKnYQ=
 code.linenisgreat.com/purse-first/libs/go-mcp v0.5.0 h1:Z0tyzhQznB+DKpiEYx2FqNEomqm4xDgjqkqPBs+EQIo=
 code.linenisgreat.com/purse-first/libs/go-mcp v0.5.0/go.mod h1:qA0uH7HA2SdBF/W9kV9avEurJghTW2WVsOyX2hf6oAo=
+code.linenisgreat.com/tap/go v0.2.0 h1:xtQ8Ny8Kbx5wA3+TwrJz7rrERq54HRBNQoos4bX1XEY=
+code.linenisgreat.com/tap/go v0.2.0/go.mod h1:ldOXHYcw5RPm1llq11gUBiGiQymEsh0ppy24jhTM2ak=
 code.linenisgreat.com/tommy v0.5.0 h1:tgFeUayWv/C9+xHYXT+TFltHhVt6PE2LOF2PuX5SmKY=
 code.linenisgreat.com/tommy v0.5.0/go.mod h1:Ri1R1ybYJ7ZQ4247LxmwnUTnHh8QUYDbo3MgVWvp8Fs=
-github.com/amarbel-llc/purse-first/libs/dewey v0.1.0 h1:R5XUOpNZtri9mkLWRYI5HW+PN+B10re32zFx0aoqtMw=
-github.com/amarbel-llc/purse-first/libs/dewey v0.1.0/go.mod h1:Z2O4fGt0BRR8wB5c1HpMRd/XG6Ymx4Ch7g4RfQmqnbI=
-github.com/amarbel-llc/tap/go v0.1.5 h1:/SzwmaUmo1WIUcU/RCtujEAl2IK8sg1x6V/RgwgcjiY=
-github.com/amarbel-llc/tap/go v0.1.5/go.mod h1:zagkpdJWCOQIfCjy2BHFnZL6vxc27fTDbyUutJsJmvk=
 github.com/aymanbagabas/go-osc52/v2 v2.0.1 h1:HwpRHbFMcZLEVr42D4p7XBqjyuxQH5SMiErDT4WkJ2k=
 github.com/aymanbagabas/go-osc52/v2 v2.0.1/go.mod h1:uYgXzlJ7ZpABp8OJ+exZzJJhRNQ2ASbcXHWsFqH8hp8=
 github.com/charmbracelet/colorprofile v0.4.1 h1:a1lO03qTrSIRaK8c3JRxJDZOvhvIeSco3ej+ngLk1kk=

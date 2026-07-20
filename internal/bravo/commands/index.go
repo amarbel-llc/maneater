@@ -10,7 +10,7 @@ import (
 	"code.linenisgreat.com/maneater/internal/0/manifest"
 	"code.linenisgreat.com/maneater/internal/alfa/corpus"
 	"code.linenisgreat.com/maneater/internal/alfa/storage"
-	tap "github.com/amarbel-llc/tap/go/pkgs/writer"
+	tap "code.linenisgreat.com/tap/go/pkgs/writer"
 )
 
 // RunIndex embeds every configured corpus and writes the resulting blobs to

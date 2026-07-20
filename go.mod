@@ -4,12 +4,12 @@ go 1.26
 
 require (
 	code.linenisgreat.com/purse-first/libs/go-mcp v0.5.0
+	code.linenisgreat.com/tap/go v0.2.0
 	code.linenisgreat.com/tommy v0.5.0
-	github.com/amarbel-llc/tap/go v0.1.5
 )
 
 require (
-	github.com/amarbel-llc/purse-first/libs/dewey v0.1.0 // indirect
+	code.linenisgreat.com/purse-first/libs/dewey v0.5.0 // indirect
 	github.com/aymanbagabas/go-osc52/v2 v2.0.1 // indirect
 	github.com/charmbracelet/colorprofile v0.4.1 // indirect
 	github.com/charmbracelet/lipgloss v1.1.0 // indirect
