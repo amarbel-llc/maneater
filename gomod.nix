@@ -13,6 +13,7 @@
   tap,
   tommy,
   purse-first,
+  purse-first-dewey-legacy,
   system,
 }:
 {
@@ -20,15 +21,23 @@
     src = tap.packages.${system}.go-pkgs;
     subPath = "go";
   };
-  "github.com/amarbel-llc/tommy" = {
+  "code.linenisgreat.com/tommy" = {
     src = tommy.packages.${system}.go-pkgs;
   };
-  "github.com/amarbel-llc/purse-first/libs/go-mcp" = {
+  "code.linenisgreat.com/purse-first/libs/go-mcp" = {
     src = purse-first.packages.${system}.go-pkgs;
     subPath = "libs/go-mcp";
   };
+  # maneater's indirect dewey require stays on the pre-rename
+  # github.com/amarbel-llc/purse-first/libs/dewey path (wave-3-B1
+  # residue — dewey's own rename is deferred to wave 4; it reaches
+  # maneater transitively through tap, which hasn't migrated either).
+  # Bridging it through the root `purse-first` input (now renamed, for
+  # go-mcp) would serve mismatched content: an old-path require
+  # satisfied by a package that internally declares the new path.
+  # Sourced from a decoupled pre-rename purse-first snapshot instead.
   "github.com/amarbel-llc/purse-first/libs/dewey" = {
-    src = purse-first.packages.${system}.go-pkgs;
+    src = purse-first-dewey-legacy.packages.${system}.go-pkgs;
     subPath = "libs/dewey";
   };
 }

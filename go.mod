@@ -3,9 +3,9 @@ module code.linenisgreat.com/maneater
 go 1.26
 
 require (
-	github.com/amarbel-llc/purse-first/libs/go-mcp v0.0.12
+	code.linenisgreat.com/purse-first/libs/go-mcp v0.5.0
+	code.linenisgreat.com/tommy v0.5.0
 	github.com/amarbel-llc/tap/go v0.1.5
-	github.com/amarbel-llc/tommy v0.4.1
 )
 
 require (

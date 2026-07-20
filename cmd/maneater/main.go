@@ -9,7 +9,7 @@ import (
 	"os/signal"
 
 	"code.linenisgreat.com/maneater/internal/bravo/commands"
-	"github.com/amarbel-llc/purse-first/libs/go-mcp/command"
+	"code.linenisgreat.com/purse-first/libs/go-mcp/command"
 )
 
 //go:embed maneater.1 maneater.toml.5

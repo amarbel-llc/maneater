@@ -49,6 +49,21 @@
       inputs.nixpkgs-master.follows = "nixpkgs-master";
       inputs.utils.follows = "utils";
     };
+
+    # Decoupled, pre-rename purse-first snapshot used ONLY for the
+    # gomod.nix dewey bridge. maneater's dewey require stays on the old
+    # github.com/amarbel-llc/purse-first/libs/dewey path (wave-3-B1
+    # residue — dewey's own rename is deferred to wave 4), so bridging
+    # it through the now-renamed root `purse-first` input would serve
+    # content that internally declares the new path, breaking the
+    # build. Same commit already pinned for madder's decoupled follows
+    # below. See eng go-module-rename playbook, wave-3 gotchas.
+    purse-first-dewey-legacy = {
+      url = "https://code.linenisgreat.com/purse-first/archive/46752e9f7643d1a9d9c1a6cc6e443d0e24e8c67d.tar.gz";
+      inputs.igloo.follows = "igloo";
+      inputs.nixpkgs-master.follows = "nixpkgs-master";
+      inputs.utils.follows = "utils";
+    };
     madder.inputs.bats.follows = "bats";
     tap.inputs.bats.follows = "bats";
     tommy.inputs.bats.follows = "bats";
@@ -56,12 +71,23 @@
     utils.inputs.systems.follows = "igloo/systems";
     igloo.inputs.nixpkgs-master.follows = "nixpkgs-master";
     madder.inputs.nixpkgs-master.follows = "nixpkgs-master";
-    madder.inputs.purse-first.follows = "purse-first";
+    # NOT following root's purse-first: madder hasn't landed its own
+    # wave-3-B2 consumer leg yet, so its vendored dewey copy doesn't
+    # build against purse-first's post-rename dewey (SeqError generics
+    # break, discovered during the tommy/go-mcp B1 leg). Pin madder's
+    # purse-first explicitly at the last commit known to build with
+    # madder, pending madder's own leg. See eng go-module-rename
+    # playbook, wave-3 gotchas.
+    madder.inputs.purse-first.url = "https://code.linenisgreat.com/purse-first/archive/46752e9f7643d1a9d9c1a6cc6e443d0e24e8c67d.tar.gz";
     tap.inputs.purse-first.follows = "purse-first";
     tap.inputs.gomod2nix.follows = "purse-first/gomod2nix";
     madder.inputs.tap.follows = "tap";
     tommy.inputs.tap.follows = "tap";
-    madder.inputs.tommy.follows = "tommy";
+    # NOT following root's tommy, for the same reason as purse-first
+    # above: madder's own vendored tommy require is still the old
+    # github.com/amarbel-llc/tommy path, which breaks against the
+    # renamed tommy source. Pin at the last pre-rename commit.
+    madder.inputs.tommy.url = "https://code.linenisgreat.com/tommy/archive/e2497cfe3a68ef7ae7aa5024edde93c2daa31e7d.tar.gz";
     madder.inputs.conformist.follows = "conformist";
     purse-first.inputs.conformist.follows = "conformist";
     tommy.inputs.conformist.follows = "conformist";
@@ -80,6 +106,7 @@
       conformist,
       madder,
       purse-first,
+      purse-first-dewey-legacy,
     }:
     let
       # version.env at repo root is the single source of truth for the
@@ -138,6 +165,7 @@
             tap
             tommy
             purse-first
+            purse-first-dewey-legacy
             system
             ;
         };
