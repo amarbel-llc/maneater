@@ -14,6 +14,8 @@ codemod-fmt: codemod-fmt-tree
 
 # Read-only formatting + the eng presets' file-based linters, via the sandboxed
 # checks.formatting derivation.
+#
+# check formatting and the eng file-based linters
 [group('lint')]
 lint-fmt:
   #!/usr/bin/env bash
@@ -23,6 +25,8 @@ lint-fmt:
 
 # Impure eng checks (git remotes, sweatfile, agents-md, gomod2nix) against the
 # working tree; conformist comes from the devShell PATH.
+#
+# run the impure eng checks against the working tree
 [group('lint')]
 lint-worktree:
   #!/usr/bin/env bash
@@ -37,6 +41,8 @@ codemod-fmt-tree:
 
 # Build unwrapped maneater binary via nix. Output at build/result/bin/maneater.
 # Wrapped variant (with madder/mandoc/pandoc/tldr on PATH) is `just build-wrapped`.
+#
+# build the unwrapped maneater binary via nix
 [group('build')]
 build-go:
   nix build --out-link build/result .#maneater-unwrapped
@@ -45,6 +51,8 @@ build-go:
 # `go test ./...` inside the build sandbox; `--rebuild` forces re-execution
 # even when the store path is cached, and `-L` streams check output so test
 # logs are visible.
+#
+# run all Go tests via nix
 [group('test')]
 test-go: codemod-fmt
   nix build -L --rebuild .#maneater-unwrapped
@@ -54,6 +62,8 @@ test-go: codemod-fmt
 # the gomod2nix vendor cache is already wired up), then we copy the result back
 # into the working tree. tommy names its output after the directive's source
 # file (schema.go -> schema_tommy.go).
+#
+# regenerate schema_tommy.go via the nix codegen lane
 [group('codemod')]
 codemod-generate:
   nix build --out-link build/gen .#maneater-gen
@@ -75,6 +85,8 @@ build-nix:
 # build can mask (see amarbel-llc/nixpkgs#50). No store-output usage —
 # just a build-check that fails loudly if direnv would refuse to enter
 # the devshell.
+#
+# verify the devShell evaluates and builds
 [group('post-build')]
 verify-devshell:
   nix build --no-link .#devShells.{{ arch() }}-linux.default
@@ -101,6 +113,8 @@ codemod-dagnabit:
 #
 # Usage:
 #   just debug-gguf-sri-hash https://huggingface.co/Qwen/Qwen3-Embedding-4B-GGUF/resolve/main/Qwen3-Embedding-4B-Q8_0.gguf
+#
+# look up the SRI sha256 of a HuggingFace LFS file without downloading it
 [group('debug')]
 debug-gguf-sri-hash url:
   #!/usr/bin/env bash
@@ -128,6 +142,8 @@ debug-gguf-sri-hash url:
 # (ggml_backend_cpu_reg / ggml_backend_register) from the dynamic
 # loader (ggml_backend_load_all) when a llama.cpp bump changes how
 # backends self-register. See maneater "no backends are loaded" debug.
+#
+# dump the backend-registration symbols exported by the linked llama-cpp
 [group('debug')]
 debug-llama-backend-syms:
   #!/usr/bin/env bash
@@ -218,6 +234,8 @@ explore-smart-profile-smoke: build-wrapped
 # Snapshot HF's GGUF + feature-extraction model list for offline
 # analysis. Reusable for "what's currently shipping as GGUF embedding"
 # surveys; output lands at .tmp/hf-gguf-embed.json by default.
+#
+# snapshot HF's GGUF + feature-extraction model list
 [group('explore')]
 explore-hf-gguf-embed url='https://huggingface.co/api/models?filter=gguf,feature-extraction&full=false&limit=1000&sort=downloads&direction=-1' out='.tmp/hf-gguf-embed.json':
   curl -sSL "{{url}}" -o "{{out}}"
@@ -226,6 +244,8 @@ explore-hf-gguf-embed url='https://huggingface.co/api/models?filter=gguf,feature
 
 # Companion to explore-hf-gguf-embed: fetches results 1001-2000 (the API caps
 # limit=1000, so we paginate via skip).
+#
+# fetch results 1001-2000 of the HF GGUF model list
 [group('explore')]
 explore-hf-gguf-embed-page2:
   curl -sSL 'https://huggingface.co/api/models?filter=gguf,feature-extraction&full=false&limit=1000&sort=downloads&direction=-1&skip=1000' -o .tmp/hf-gguf-embed-page2.json
@@ -234,6 +254,8 @@ explore-hf-gguf-embed-page2:
 # Cross-check using `?other=` instead of `?filter=`. HF's two filter
 # modes return different populations; comparing them surfaces tag
 # mismatches.
+#
+# snapshot the HF model list using `?other=` instead of `?filter=`
 [group('explore')]
 explore-hf-gguf-embed-other:
   curl -sSL 'https://huggingface.co/api/models?other=gguf,feature-extraction&full=false&limit=1000&sort=downloads&direction=-1' -o .tmp/hf-gguf-embed-other.json
@@ -241,12 +263,16 @@ explore-hf-gguf-embed-other:
 
 # Just the headers — useful for confirming pagination cursors and
 # rate-limit info before pulling the body.
+#
+# fetch only the response headers for the HF model-list query
 [group('explore')]
 explore-hf-gguf-embed-headers:
   curl -sSLI 'https://huggingface.co/api/models?filter=gguf,feature-extraction&full=false&limit=1000&sort=downloads&direction=-1'
 
 # Concatenate page1 + page2 snapshots into a single JSON array for jq
 # aggregations across the merged set.
+#
+# concatenate the page1 and page2 HF snapshots into one JSON array
 [group('explore')]
 explore-hf-gguf-embed-merge:
   jq -s 'add' .tmp/hf-gguf-embed.json .tmp/hf-gguf-embed-page2.json > .tmp/hf-gguf-embed-all.json
@@ -257,6 +283,8 @@ explore-hf-gguf-embed-merge:
 # footguns the bats sandbox can't reproduce (e.g. the n-ctx token-overflow
 # crash from a user corpus). Runs from $HOME so the repo-local prototype
 # maneater.toml (stale; see maneater#34) doesn't overlay the real config.
+#
+# run a real `maneater index` against the invoking user's own config
 [group('explore')]
 explore-index-real: build-wrapped
   #!/usr/bin/env bash
@@ -266,6 +294,8 @@ explore-index-real: build-wrapped
 
 # Symlink the repo's roff sources into a build/man tree shaped like a real
 # manpath, for pointing MANPATH at during man-rendering dev loops.
+#
+# symlink the repo's roff sources into a manpath-shaped build/man tree
 [group('explore')]
 explore-man-tree:
   mkdir -p build/man/man1 build/man/man5
@@ -280,6 +310,8 @@ explore-man-tree:
 # MANEATER_TEST_CONFIG (set by the devshell) and runs the full set
 # against it. Deliberately NOT in the `test` aggregate: the quality
 # suite is subjective and model-heavy.
+#
+# run the model-dependent embedding tests including the ranking suite
 [group('debug')]
 debug-embedding-quality run='.':
   #!/usr/bin/env bash
@@ -292,6 +324,8 @@ debug-embedding-quality run='.':
 # --no-sandbox bypasses batman's fence (bubblewrap) wrapper so the wrapped
 # maneater can reach the host GPU for real embedding inference; fence has no
 # GPU device passthru.
+#
+# run the bats integration tests against the wrapped binary
 [group('test')]
 test-bats: build-wrapped
   MANEATER_BIN={{justfile_directory()}}/build/result-wrapped/bin/maneater bats --no-sandbox zz-tests_bats/
@@ -299,6 +333,8 @@ test-bats: build-wrapped
 # Regenerate the deterministic bench-manpath fixture pages
 # (zz-fixtures/manpages/man{1,5}/*). Output is byte-stable, so this is an
 # on-demand regen lane, not part of any pipeline aggregate.
+#
+# regenerate the deterministic bench-manpath fixture pages
 [group('debug')]
 debug-gen-manpages-fixtures:
   zz-fixtures/manpages/gen.sh
@@ -306,6 +342,8 @@ debug-gen-manpages-fixtures:
 # Run wall-clock bench against a synthetic 200-file type=command corpus.
 # Uses the wrapped binary (so madder is on PATH) and MANEATER_TEST_CONFIG
 # (from the nix devshell). Results appended to docs/bench/<date>-bench.md.
+#
+# bench wall-clock indexing against a synthetic 200-file corpus
 [group('debug')]
 debug-bench: build-wrapped
   #!/usr/bin/env bash
@@ -429,6 +467,8 @@ debug-bench: build-wrapped
 # system manpath. Captures the expensive-read-cmd case (mandoc + pandoc
 # + tldr per page) that the synthetic `bench` recipe does not exercise.
 # Results appended to docs/bench/<date>-bench.md.
+#
+# bench wall-clock indexing against the default manpages corpus
 [group('debug')]
 debug-bench-manpath: build-wrapped
   #!/usr/bin/env bash
