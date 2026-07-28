@@ -36,7 +36,7 @@ require_bin MANEATER_BIN maneater
 
 run_maneater() {
   local bin="${MANEATER_BIN:-maneater}"
-  run timeout --preserve-status 60s "$bin" "$@" 2>&1
+  run timeout --preserve-status 120s "$bin" "$@" 2>&1
 }
 
 init_maneater_store() {

@@ -113,13 +113,13 @@ EOF
 # against the deterministic zz-fixtures/manpages tree. Guarded: maneater's
 # manpath resolution always appends the system manpath (via manpath(1)), so
 # unless manpath(1) honors $MANPATH and reports exactly the fixtures tree,
-# the test would embed the host's entire man tree and blow the 60s timeout.
+# the test would embed the host's entire man tree and blow the 120s timeout.
 function manpages_corpus_indexes_alongside_files { # @test
   require_test_config
 
   # A 2-page subtree (one per section) of the deterministic fixtures:
   # the full 20-page tree costs ~3-4s/page (mandoc+pandoc+tldr+embed)
-  # and blows run_maneater's 60s timeout.
+  # and blows run_maneater's 120s timeout.
   local repo_root man_tree
   repo_root="$(cd "$BATS_TEST_DIRNAME/.." && pwd)"
   man_tree="$BATS_TEST_TMPDIR/man"
