@@ -34,7 +34,7 @@ lint-worktree:
   cfg=$(nix build --no-link --print-out-paths '.#conformist-impure-config')
   conformist check --config-file "$cfg" --tree-root .
 
-# Format the tree in place (repair mode) via `nix fmt`.
+# format the tree in place (repair mode) via `nix fmt`
 [group('codemod')]
 codemod-fmt-tree:
   nix fmt
@@ -70,12 +70,12 @@ codemod-generate:
   cp build/gen/schema_tommy.go internal/0/config/schema/schema_tommy.go
   chmod u+w internal/0/config/schema/schema_tommy.go
 
-# Regenerate gomod2nix.toml
+# regenerate gomod2nix.toml
 [group('build')]
 build-gomod2nix:
   gomod2nix
 
-# Build nix package
+# build nix package
 [group('build')]
 build-nix:
   nix build --show-trace
@@ -91,17 +91,17 @@ build-nix:
 verify-devshell:
   nix build --no-link .#devShells.{{ arch() }}-linux.default
 
-# Build the wrapped maneater (madder + mandoc + pandoc + tldr on its PATH)
+# build the wrapped maneater (madder + mandoc + pandoc + tldr on its PATH)
 [group('build')]
 build-wrapped:
   nix build --out-link build/result-wrapped .#default
 
-# Dry-run dagnabit reposition to see how the internal/ DAG has drifted from NATO tiering.
+# dry-run dagnabit reposition to see how the internal/ DAG has drifted from NATO tiering
 [group('post-build')]
 verify-dagnabit:
   dagnabit -n -v internal
 
-# Apply dagnabit reposition to realign internal/ packages with NATO tiering.
+# apply dagnabit reposition to realign internal/ packages with NATO tiering
 [group('codemod')]
 codemod-dagnabit:
   dagnabit -v internal
@@ -166,6 +166,8 @@ debug-llama-backend-syms:
 # the FDR's framing is small, focused corpora.
 #
 # See docs/features/0001-smart-retrieval-corpus-profile.md.
+#
+# smoke-test the FDR-0001 smart-retrieval corpus profile end-to-end
 [group('explore')]
 explore-smart-profile-smoke: build-wrapped
   #!/usr/bin/env bash
