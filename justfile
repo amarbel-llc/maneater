@@ -4,7 +4,7 @@ lint: lint-fmt lint-worktree
 
 build: build-gomod2nix build-go build-nix build-wrapped
 
-verify: verify-devshell verify-dagnabit
+verify: verify-devshell verify-dagnabit verify-generated
 
 test: test-go test-bats
 
@@ -100,6 +100,17 @@ codemod-generate:
   nix build --out-link build/gen .#maneater-gen
   cp build/gen/schema_tommy.go internal/0/config/schema/schema_tommy.go
   chmod u+w internal/0/config/schema/schema_tommy.go
+
+# Fail when the committed schema_tommy.go differs from what the flake-pinned
+# tommy generates (checks.generated-schema). Fix with `just codemod-generate`.
+#
+# verify the committed tommy codegen matches the pinned tommy
+[group('post-build')]
+verify-generated:
+  #!/usr/bin/env bash
+  set -euo pipefail
+  system=$(nix eval --raw --impure --expr 'builtins.currentSystem')
+  nix build ".#checks.${system}.generated-schema" --no-link --print-build-logs
 
 # regenerate gomod2nix.toml
 [group('build')]

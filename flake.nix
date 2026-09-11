@@ -290,9 +290,11 @@
 
         # maneater-gen runs `go generate` against the source tree inside
         # a nix sandbox and emits the generated schema_tommy.go. The
-        # justfile `generate` recipe copies the result back into
-        # internal/0/config/schema/. Keeps `go generate` out of host-side
-        # justfile recipes.
+        # justfile `codemod-generate` recipe copies the result back into
+        # internal/0/config/schema/, and checks.generated-schema diffs it
+        # against the committed file. Keeps `go generate` out of host-side
+        # justfile recipes, so the only tommy that can run is the
+        # flake-pinned one on nativeBuildInputs (never a PATH leak).
         #
         # Piggybacks on maneater-man's buildGoApplication backend so the
         # gomod2nix vendor cache is already wired up (`tommy generate`
@@ -356,6 +358,26 @@
       {
         formatter = conformistEval.config.build.wrapper;
         checks.formatting = conformistEval.config.build.check self;
+
+        # Codegen drift gate: the committed schema_tommy.go must be
+        # byte-identical to what the flake-pinned tommy emits via
+        # maneater-gen. The generated header stamps tommy's version and
+        # commit, so a tommy input bump without `just codemod-generate`
+        # fails here instead of leaving a stale file committed.
+        checks.generated-schema =
+          pkgs.runCommand "maneater-generated-schema-drift"
+            {
+              nativeBuildInputs = [ pkgs.diffutils ];
+            }
+            ''
+              if ! diff -u \
+                ${./internal/0/config/schema/schema_tommy.go} \
+                ${maneater-gen}/schema_tommy.go; then
+                echo "schema_tommy.go is stale against the pinned tommy; run 'just codemod-generate'" >&2
+                exit 1
+              fi
+              touch $out
+            '';
 
         packages = {
           inherit
