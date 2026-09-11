@@ -49,13 +49,22 @@ build-go:
 
 # Run all Go tests via nix. The buildGoApplication backend's checkPhase runs
 # `go test ./...` inside the build sandbox (the godyn default can't test cgo
-# packages yet, igloo#32); `--rebuild` forces re-execution even when the store
-# path is cached, and `-L` streams check output so test logs are visible.
+# packages yet, igloo#32). A cached output is re-checked with `--rebuild`
+# (which errors when the output isn't in the store yet); an absent one is
+# built, which runs the suite. `-L` streams check output so test logs are
+# visible.
 #
 # run all Go tests via nix
 [group('test')]
 test-go: codemod-fmt
-  nix build -L --rebuild .#maneater-build_go_application
+  #!/usr/bin/env bash
+  set -euo pipefail
+  attr=.#maneater-build_go_application
+  if nix path-info "$attr" >/dev/null 2>&1; then
+    nix build -L --rebuild "$attr"
+  else
+    nix build -L "$attr"
+  fi
 
 # Build both Go binaries on the default backend (godyn on x86_64-linux) plus
 # their buildGoApplication twins, then smoke-run the default ones. Dev loop for
