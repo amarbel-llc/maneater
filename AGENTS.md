@@ -5,18 +5,6 @@ embeddings (via llama.cpp CGo bindings) to build per-corpus indexes and answer
 natural language queries. Man pages are the default built-in corpus; additional
 corpus types (files, external commands) allow indexing arbitrary text collections.
 
-## Build & Test
-
-```sh
-just                    # full gate: lint build verify test
-just build-go           # nix build the unwrapped binary -> build/result
-just test               # test-go (nix checkPhase) + test-bats
-just codemod-generate   # regenerate schema_tommy.go with the flake-pinned tommy
-just verify-generated   # fail if schema_tommy.go drifts from the pinned tommy
-just build-gomod2nix    # regenerate gomod2nix.toml
-just codemod-fmt        # nix fmt (conformist)
-```
-
 ## Architecture
 
 - `cmd/maneater/` -- CLI binary (index + search subcommands)
