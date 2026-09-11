@@ -44,14 +44,17 @@ Models are merged by name (overlay wins per key). The
 
 ## Nix Build
 
-`maneater-unwrapped` uses `CGO_ENABLED = "1"` with `pkg-config` and `llama-cpp`
-in buildInputs. Wrapped binary adds mandoc, pandoc, tldr to PATH.
+`maneater-unwrapped` is built with igloo's `buildGoAuto`: godyn on x86_64-linux,
+buildGoApplication elsewhere (and as `maneater-build_go_application`). It is cgo
+against `llama-cpp` (via `#cgo pkg-config: llama`). Wrapped binary adds mandoc,
+pandoc, tldr to PATH.
 
 ## Testing
 
-- Mechanical embedding tests in `internal/0/embedding/` run in the nix
-  checkPhase (`maneater-unwrapped` sets `MANPAGE_MODEL_PATH` to the snowflake
-  FOD); outside nix they skip unless `MANPAGE_MODEL_PATH` is set
+- Mechanical embedding tests in `internal/0/embedding/` run in the
+  buildGoApplication backend's nix checkPhase (`maneater-build_go_application`
+  sets `MANPAGE_MODEL_PATH` to the snowflake FOD); outside nix they skip unless
+  `MANPAGE_MODEL_PATH` is set
 - `search_quality_test.go` is the opt-in subjective ranking suite (gated on
   `MANEATER_QUALITY_TESTS`); it documents expected ranking behavior and known
   gaps --- update these when changing the embedding pipeline. See issue #36.

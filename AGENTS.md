@@ -90,9 +90,12 @@ edit it manually.
 
 - Pure Go tests (cosine, index, config, manpath) run without external deps
 - Mechanical embedding tests (load, embed, tokenize, context size) run in the
-  nix checkPhase: `maneater-unwrapped` sets `MANPAGE_MODEL_PATH` to the snowflake
-  FOD, so they exercise real model loading/inference on every build (darwin and
-  linux). Outside nix they skip unless `MANPAGE_MODEL_PATH` is set.
+  nix checkPhase of the buildGoApplication backend
+  (`maneater-build_go_application`, what `just test-go` builds), which sets
+  `MANPAGE_MODEL_PATH` to the snowflake FOD so they exercise real model
+  loading/inference (darwin and linux). The godyn default build runs no tests
+  (godyn can't test cgo packages yet, igloo#32). Outside nix they skip unless
+  `MANPAGE_MODEL_PATH` is set.
 - The subjective ranking suite (`search_quality_test.go`) is opt-in behind
   `MANEATER_QUALITY_TESTS` so its quality assertions don't gate merges; two
   currently fail against snowflake (issue #36). `just test-go-embedding
@@ -104,6 +107,13 @@ edit it manually.
 Follows the stable-first nixpkgs convention:
 - `nixpkgs` = stable (runtimes, core tools)
 - `nixpkgs-master` = latest (Go toolchain)
+
+Go binaries build via igloo's `buildGoAuto`: godyn (per-package, incremental;
+package graph derived at eval time, nothing committed) on x86_64-linux,
+buildGoApplication elsewhere. Each keeps the other reachable as
+`passthru.native` / `passthru.bga`; `maneater-build_go_application` names the
+bga build that runs the unit suite. `just explore-go-backends` builds and
+smoke-runs both.
 
 The wrapped binary bundles mandoc, pandoc, tldr on PATH and sets
 `MANEATER_CONFIG` to point to bundled model configs. Two embedding models are

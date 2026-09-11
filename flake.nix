@@ -131,9 +131,10 @@
 
         # flake-input-go_mod consumer-half bridge. See gomod.nix and
         # amarbel-llc/nixpkgs RFC 0001. Threaded into every
-        # buildGoApplication and mkGoEnv call below; a missing call
-        # site silently falls back to organic gomod2nix.toml resolution
-        # and resurrects the lockstep regression.
+        # buildGoAuto and mkGoEnv call below (buildGoAuto hands it to
+        # both backends); a missing call site silently falls back to
+        # organic gomod2nix.toml resolution and resurrects the lockstep
+        # regression.
         goFlakeInputs = import ./gomod.nix {
           inherit
             tap
@@ -180,33 +181,72 @@
             && !(pkgs.lib.hasInfix "/.tmp/" path);
         };
 
-        goAppBase = {
-          inherit go goFlakeInputs;
+        # Go builds go through igloo's buildGoAuto: godyn (per-package,
+        # incremental) on x86_64-linux, buildGoApplication elsewhere — godyn is
+        # validated only there (godyn(7) LIMITATIONS, igloo#33) and its
+        # eval-time graph IFD can't be built from another host (igloo#75). The
+        # package graph is derived at eval time from modules + goFlakeInputs
+        # (igloo FDR 0008), so nothing is committed. Both backends stay
+        # reachable via passthru.native / passthru.bga.
+        godynSystem = system == "x86_64-linux";
+
+        goAutoBase = {
+          inherit goFlakeInputs;
           src = goSrc;
-          pwd = ./.;
           modules = ./gomod2nix.toml;
-          GOTOOLCHAIN = "local";
           version = maneaterVersion;
-          commit = maneaterCommit;
+          strategy = if godynSystem then "native" else "bga";
+          nativeArgs = {
+            pwd = ./.;
+            commit = maneaterCommit;
+          };
+          bgaArgs = {
+            inherit go;
+            pwd = ./.;
+            commit = maneaterCommit;
+            GOTOOLCHAIN = "local";
+          };
         };
 
-        maneater-unwrapped = pkgs.buildGoApplication (
-          goAppBase
-          // {
-            pname = "maneater";
-            subPackages = [ "cmd/maneater" ];
+        mkManeaterGo =
+          {
+            nativeArgs ? { },
+            bgaArgs ? { },
+            ...
+          }@args:
+          pkgs.buildGoAuto (
+            goAutoBase
+            // args
+            // {
+              nativeArgs = goAutoBase.nativeArgs // nativeArgs;
+              bgaArgs = goAutoBase.bgaArgs // bgaArgs;
+            }
+          );
+
+        maneater-unwrapped = mkManeaterGo {
+          pname = "maneater";
+          subPackages = [ "cmd/maneater" ];
+          buildInputs = [ pkgs.llama-cpp ];
+          # llama-cpp ships its compute backends (libggml-cpu-*.so,
+          # libggml-metal.so) as separate dynamic libraries under
+          # ${llama-cpp}/bin. ggml_backend_load_all() only scans the
+          # running binary's own directory, which in the nix layout
+          # does not contain them, so without this the model load
+          # fails with "no backends are loaded". The -D points
+          # internal/0/embedding's loader at the right directory; see
+          # backend_init.go. Single-quoted so the C string literal's
+          # quotes survive both backends' flag splitting (godyn splits
+          # in a bash array, cmd/go with its quoted-field splitter).
+          CGO_CFLAGS = "'-DMANEATER_GGML_BACKEND_DIR=\"${pkgs.llama-cpp}/bin\"'";
+          # godyn's `#cgo pkg-config: llama` handling adds pkg-config itself.
+          nativeArgs.cc = pkgs.stdenv.cc;
+          bgaArgs = {
             CGO_ENABLED = "1";
             nativeBuildInputs = [ pkgs.pkg-config ];
-            buildInputs = [ pkgs.llama-cpp ];
-            # llama-cpp ships its compute backends (libggml-cpu-*.so,
-            # libggml-metal.so) as separate dynamic libraries under
-            # ${llama-cpp}/bin. ggml_backend_load_all() only scans the
-            # running binary's own directory, which in the nix layout
-            # does not contain them, so without this the model load
-            # fails with "no backends are loaded". The -D points
-            # internal/0/embedding's loader at the right directory; see
-            # backend_init.go.
-            CGO_CFLAGS = "-DMANEATER_GGML_BACKEND_DIR=\"${pkgs.llama-cpp}/bin\"";
+            # The unit suite runs only on the buildGoApplication backend:
+            # godyn can't yet test cgo packages (godyn(7) LIMITATIONS,
+            # igloo#32), and internal/0/embedding is the one that matters.
+            #
             # Point the embedding tests at the snowflake FOD so the
             # checkPhase exercises real model loading and inference
             # instead of skipping (the tests skip when MANPAGE_MODEL_PATH
@@ -226,24 +266,27 @@
               go test -p $NIX_BUILD_CORES ./...
               runHook postCheck
             '';
-          }
-        );
+          };
+        };
+
+        # The buildGoApplication backend under an explicit name: the escape
+        # hatch from the godyn default and the lane that runs the unit suite.
+        maneater-build_go_application = maneater-unwrapped.passthru.bga;
 
         # maneater-man is the lean companion binary the default manpages
         # corpus spawns per page. No CGO, no llama-cpp, no llama init cost
         # on every subprocess. See maneater#12 / #17.
-        maneater-man-unwrapped = pkgs.buildGoApplication (
-          goAppBase
-          // {
-            pname = "maneater-man";
-            subPackages = [ "cmd/maneater-man" ];
+        maneater-man-unwrapped = mkManeaterGo {
+          pname = "maneater-man";
+          subPackages = [ "cmd/maneater-man" ];
+          bgaArgs = {
             CGO_ENABLED = "0";
             # maneater-unwrapped's checkPhase already runs the full Go
             # suite; re-running it here would double the test cost for
             # every default build.
             doCheck = false;
-          }
-        );
+          };
+        };
 
         # maneater-gen runs `go generate` against the source tree inside
         # a nix sandbox and emits the generated schema_tommy.go. The
@@ -251,13 +294,13 @@
         # internal/0/config/schema/. Keeps `go generate` out of host-side
         # justfile recipes.
         #
-        # Piggybacks on maneater-man-unwrapped so the gomod2nix vendor
-        # cache is already wired up (`tommy generate` imports the tommy
-        # CST package and would otherwise try to fetch modules over the
-        # network, which the build sandbox forbids). Build/install phases
-        # are replaced; we don't ship the cmd/maneater-man binary from
-        # this derivation.
-        maneater-gen = maneater-man-unwrapped.overrideAttrs (old: {
+        # Piggybacks on maneater-man's buildGoApplication backend so the
+        # gomod2nix vendor cache is already wired up (`tommy generate`
+        # imports the tommy CST package and would otherwise try to fetch
+        # modules over the network, which the build sandbox forbids).
+        # Build/install phases are replaced; we don't ship the
+        # cmd/maneater-man binary from this derivation.
+        maneater-gen = maneater-man-unwrapped.passthru.bga.overrideAttrs (old: {
           pname = "maneater-gen";
           nativeBuildInputs = (old.nativeBuildInputs or [ ]) ++ [
             tommy.packages.${system}.default
@@ -318,6 +361,7 @@
           inherit
             maneater
             maneater-unwrapped
+            maneater-build_go_application
             maneater-man-unwrapped
             maneater-gen
             ;

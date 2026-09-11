@@ -47,15 +47,37 @@ codemod-fmt-tree:
 build-go:
   nix build --out-link build/result .#maneater-unwrapped
 
-# Run all Go tests via nix. The maneater-unwrapped derivation's checkPhase runs
-# `go test ./...` inside the build sandbox; `--rebuild` forces re-execution
-# even when the store path is cached, and `-L` streams check output so test
-# logs are visible.
+# Run all Go tests via nix. The buildGoApplication backend's checkPhase runs
+# `go test ./...` inside the build sandbox (the godyn default can't test cgo
+# packages yet, igloo#32); `--rebuild` forces re-execution even when the store
+# path is cached, and `-L` streams check output so test logs are visible.
 #
 # run all Go tests via nix
 [group('test')]
 test-go: codemod-fmt
-  nix build -L --rebuild .#maneater-unwrapped
+  nix build -L --rebuild .#maneater-build_go_application
+
+# Build both Go binaries on the default backend (godyn on x86_64-linux) plus
+# their buildGoApplication twins, then smoke-run the default ones. Dev loop for
+# checking the igloo buildGoAuto wiring after an igloo bump.
+#
+# build the godyn and buildGoApplication backends side by side and smoke-run them
+[group('explore')]
+explore-go-backends:
+  #!/usr/bin/env bash
+  set -euo pipefail
+  for attr in maneater-unwrapped maneater-man-unwrapped; do
+    echo "==> $attr: backend $(nix eval --raw ".#$attr.passthru.backend")"
+    nix build -L --out-link "build/$attr" ".#$attr"
+    ls -l "build/$attr/bin"
+  done
+  echo "==> maneater --help"
+  build/maneater-unwrapped/bin/maneater --help 2>&1 | sed -n '1,8p'
+  echo "==> maneater-man --help"
+  build/maneater-man-unwrapped/bin/maneater-man --help 2>&1 | sed -n '1,8p' || true
+  echo "==> buildGoApplication escape hatches"
+  nix build -L --no-link .#maneater-man-unwrapped.passthru.bga
+  nix build -L --no-link .#maneater-build_go_application
 
 # Regenerate schema_tommy.go via nix codegen lane. The maneater-gen derivation
 # runs `go generate ./internal/0/config/schema` inside the build sandbox (where
