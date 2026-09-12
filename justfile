@@ -101,16 +101,25 @@ codemod-generate:
   cp build/gen/schema_tommy.go internal/0/config/schema/schema_tommy.go
   chmod u+w internal/0/config/schema/schema_tommy.go
 
-# Fail when the committed schema_tommy.go differs from what the flake-pinned
-# tommy generates (checks.generated-schema). Fix with `just codemod-generate`.
+# Assert the committed schema_tommy.go is current: regenerate via the nix
+# codegen lane, then fail on any drift — a stale or hand-edited generated
+# file, or a tommy flake-input bump (the header stamps the producing tommy
+# build). The regenerate-then-clean-diff form leaves the corrected file
+# sitting in the working tree on failure, so drift from an automated
+# flake-update cascade just needs a commit, not a separate manual
+# `just codemod-generate` step first (maneater#47).
 #
-# verify the committed tommy codegen matches the pinned tommy
+# drift gate: regenerate schema_tommy.go, then fail if it's now dirty
 [group('post-build')]
-verify-generated:
+verify-generated: codemod-generate
   #!/usr/bin/env bash
   set -euo pipefail
-  system=$(nix eval --raw --impure --expr 'builtins.currentSystem')
-  nix build ".#checks.${system}.generated-schema" --no-link --print-build-logs
+  if ! git diff --quiet -- internal/0/config/schema/schema_tommy.go; then
+    git --no-pager diff -- internal/0/config/schema/schema_tommy.go
+    echo "verify-generated: schema_tommy.go out of date; run 'just codemod-generate' and commit" >&2
+    exit 1
+  fi
+  echo "verify-generated: ok"
 
 # regenerate gomod2nix.toml
 [group('build')]
