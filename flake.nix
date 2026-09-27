@@ -288,46 +288,6 @@
           };
         };
 
-        # maneater-gen runs `go generate` against the source tree inside
-        # a nix sandbox and emits the generated schema_tommy.go. The
-        # justfile `codemod-generate` recipe copies the result back into
-        # internal/0/config/schema/, and checks.generated-schema diffs it
-        # against the committed file. Keeps `go generate` out of host-side
-        # justfile recipes, so the only tommy that can run is the
-        # flake-pinned one on nativeBuildInputs (never a PATH leak).
-        #
-        # Piggybacks on maneater-man's buildGoApplication backend so the
-        # gomod2nix vendor cache is already wired up (`tommy generate`
-        # imports the tommy CST package and would otherwise try to fetch
-        # modules over the network, which the build sandbox forbids).
-        # Build/install phases are replaced; we don't ship the
-        # cmd/maneater-man binary from this derivation.
-        maneater-gen = maneater-man-unwrapped.passthru.bga.overrideAttrs (old: {
-          pname = "maneater-gen";
-          nativeBuildInputs = (old.nativeBuildInputs or [ ]) ++ [
-            tommy.packages.${system}.default
-            pkgs-master.gofumpt
-            pkgs-master.gotools # provides goimports
-          ];
-          # After codegen, run goimports + gofumpt so the emitted
-          # schema_tommy.go matches what the `fmt` recipe would produce;
-          # otherwise `just generate` then `just test` would dirty the
-          # working tree with formatting diffs the user didn't request.
-          buildPhase = ''
-            runHook preBuild
-            go generate ./internal/0/config/schema
-            goimports -w internal/0/config/schema/schema_tommy.go
-            gofumpt -w internal/0/config/schema/schema_tommy.go
-            runHook postBuild
-          '';
-          installPhase = ''
-            runHook preInstall
-            mkdir -p $out
-            cp internal/0/config/schema/schema_tommy.go $out/
-            runHook postInstall
-          '';
-        });
-
         goEnv = pkgs.mkGoEnv {
           pwd = ./.;
           inherit go goFlakeInputs;
@@ -359,25 +319,35 @@
         formatter = conformistEval.config.build.wrapper;
         checks.formatting = conformistEval.config.build.check self;
 
-        # Codegen drift gate: the committed schema_tommy.go must be
-        # byte-identical to what the flake-pinned tommy emits via
-        # maneater-gen. The generated header stamps tommy's version and
-        # commit, so a tommy input bump without `just codemod-generate`
-        # fails here instead of leaving a stale file committed.
-        checks.generated-schema =
-          pkgs.runCommand "maneater-generated-schema-drift"
-            {
-              nativeBuildInputs = [ pkgs.diffutils ];
-            }
-            ''
-              if ! diff -u \
-                ${./internal/0/config/schema/schema_tommy.go} \
-                ${maneater-gen}/schema_tommy.go; then
-                echo "schema_tommy.go is stale against the pinned tommy; run 'just codemod-generate'" >&2
-                exit 1
-              fi
-              touch $out
-            '';
+        # Codegen drift gate (maneater#48, igloo#80): the committed
+        # schema_tommy.go must be byte-identical to what tommy emits from
+        # the //go:generate directive in
+        # internal/0/config/schema/schema.go, post-formatted with
+        # goimports + gofumpt to match what `just codemod-fmt` would
+        # produce. Runs in maneater-man-unwrapped's vendored module tree
+        # (no CGO/llama-cpp weight) via godyn's passthru.codegenCheck,
+        # which is backend-independent (it always builds through
+        # buildGoApplication's checkBase — see build-godyn-module.nix —
+        # so this runs on every system, not just x86_64-linux; matches
+        # spinclass's un-gated `tommy-codegen` check). The generated
+        # header stamps tommy's version and commit, so a tommy input
+        # bump without `just codemod-generate` fails here instead of
+        # leaving a stale file committed. passthru.codegenPatch carries
+        # the repair (`git apply -p2`, see godyn(7) "Codegen drift");
+        # the generic conformist codegen-repair linter (conformist#124)
+        # will apply it automatically once it lands.
+        checks.tommy-codegen = maneater-man-unwrapped.passthru.codegenCheck {
+          command = ''
+            go generate ./internal/0/config/schema
+            goimports -w internal/0/config/schema/schema_tommy.go
+            gofumpt -w internal/0/config/schema/schema_tommy.go
+          '';
+          nativeBuildInputs = [
+            tommy.packages.${system}.default
+            pkgs-master.gofumpt
+            pkgs-master.gotools # provides goimports
+          ];
+        };
 
         packages = {
           inherit
@@ -385,7 +355,6 @@
             maneater-unwrapped
             maneater-build_go_application
             maneater-man-unwrapped
-            maneater-gen
             ;
           default = maneater;
           conformist-impure-config = conformistImpureEval.config.build.configFile;

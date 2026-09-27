@@ -88,37 +88,42 @@ explore-go-backends:
   nix build -L --no-link .#maneater-man-unwrapped.passthru.bga
   nix build -L --no-link .#maneater-build_go_application
 
-# Regenerate schema_tommy.go via nix codegen lane. The maneater-gen derivation
-# runs `go generate ./internal/0/config/schema` inside the build sandbox (where
-# the gomod2nix vendor cache is already wired up), then we copy the result back
-# into the working tree. tommy names its output after the directive's source
-# file (schema.go -> schema_tommy.go).
+# Regenerate schema_tommy.go by applying checks.<system>.tommy-codegen's
+# passthru.codegenPatch (godyn's pure repair, igloo#80 / godyn(7) "Codegen
+# drift") to the working tree: `git apply -p2`, the check's own recovery
+# instructions on failure. Unlike spinclass/cutting-garden's sibling
+# recipes (`nix run igloo#godyn-go -- -- go generate ...`), maneater has no
+# go.nix manifest (it's a plain go.mod + gomod2nix.toml module), and
+# godyn-go unconditionally rewrites ./go.nix as a side effect — not wanted
+# here, so this applies the check's own patch output directly instead.
 #
-# regenerate schema_tommy.go via the nix codegen lane
+# regenerate schema_tommy.go via the tommy-codegen check's repair patch
 [group('codemod')]
 codemod-generate:
-  nix build --out-link build/gen .#maneater-gen
-  cp build/gen/schema_tommy.go internal/0/config/schema/schema_tommy.go
-  chmod u+w internal/0/config/schema/schema_tommy.go
-
-# Assert the committed schema_tommy.go is current: regenerate via the nix
-# codegen lane, then fail on any drift — a stale or hand-edited generated
-# file, or a tommy flake-input bump (the header stamps the producing tommy
-# build). The regenerate-then-clean-diff form leaves the corrected file
-# sitting in the working tree on failure, so drift from an automated
-# flake-update cascade just needs a commit, not a separate manual
-# `just codemod-generate` step first (maneater#47).
-#
-# drift gate: regenerate schema_tommy.go, then fail if it's now dirty
-[group('post-build')]
-verify-generated: codemod-generate
   #!/usr/bin/env bash
   set -euo pipefail
-  if ! git diff --quiet -- internal/0/config/schema/schema_tommy.go; then
-    git --no-pager diff -- internal/0/config/schema/schema_tommy.go
-    echo "verify-generated: schema_tommy.go out of date; run 'just codemod-generate' and commit" >&2
-    exit 1
+  system=$(nix eval --raw --impure --expr 'builtins.currentSystem')
+  patch=$(nix build --no-link --print-out-paths ".#checks.${system}.tommy-codegen.passthru.codegenPatch")
+  if [ -s "$patch/patch" ]; then
+    git apply -p2 "$patch/patch"
+    echo "codemod-generate: applied patch"
+  else
+    echo "codemod-generate: already current"
   fi
+
+# Drift gate: checks.<system>.tommy-codegen (godyn passthru.codegenCheck)
+# runs the schema.go //go:generate directive (plus goimports/gofumpt) in
+# the vendored module tree and fails if the result differs from the
+# committed source — a stale or hand-edited generated file, or a tommy
+# flake-input bump (the header stamps the producing tommy build).
+#
+# drift gate: the committed schema_tommy.go must be current
+[group('post-build')]
+verify-generated:
+  #!/usr/bin/env bash
+  set -euo pipefail
+  system=$(nix eval --raw --impure --expr 'builtins.currentSystem')
+  nix build ".#checks.${system}.tommy-codegen" --no-link --print-build-logs
   echo "verify-generated: ok"
 
 # regenerate gomod2nix.toml
